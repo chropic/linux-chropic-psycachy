@@ -45,8 +45,9 @@ by the helper, completing that file while the prompt waits could make Enter
 promote it. The source now fails closed on blank and has executable regressions
 for blank and explicit paths. The old ISO on Ventoy embeds the pre-fix prompt
 and remains ineligible for lifecycle qualification. The corrected local image
-has passed the independent content audit; complete the exact-hash VM boot
-smoke, then run the disposable lifecycle before any physical rehearsal.
+passed the independent content audit and an exact-hash, network-disabled KVM
+smoke to the guarded disk selector; the target checkbox remained clear. Run
+the disposable install and lifecycle sequence before any physical rehearsal.
 **Remaining:** run the exact candidate through a disposable UEFI installation,
 acknowledgement, promotion, and rollback sequence with the fallback preserved,
 then run exact-candidate B550I checks. These remain separate from the passing

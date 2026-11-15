@@ -48,6 +48,15 @@ may be superseded; use the private-pilot ledger for current pilot status.
   media, Apple HDD, firmware, or install-target write occurred. See the
   [prompt-fix build report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
 
+- **2026-11-15 15:45 MST corrected AMD64 KVM smoke:** the exact corrected
+  image hash booted under network-disabled QEMU 11.0.3/KVM and reached the
+  guarded dedicated-disk selector. Only `/dev/vda` with serial
+  `psycachy-linux` appeared; the erase checkbox remained clear. The separate
+  sentinel disk and installer ISO were read-only, their checks passed after
+  shutdown, and QEMU was stopped through the monitor. This was an insecure
+  OVMF boot smoke only; installation and lifecycle remain unqualified. The
+  image has not been staged on Ventoy. See the [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is

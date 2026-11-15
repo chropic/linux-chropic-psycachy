@@ -193,3 +193,19 @@ network-disabled KVM boot smoke is pending supervised sudo access; no VM
 installation or physical-media replacement has occurred. The corrected image
 is not on Ventoy. Keep B550I lifecycle and external qualification ahead of
 SP12 native boot in the hardware sequence.
+
+## Follow-up — corrected AMD64 KVM smoke (2026-11-15 22:45 UTC)
+
+The exact corrected AMD64 ISO hash booted successfully with network disabled
+under QEMU 11.0.3/KVM and reached the guarded disk selector. Only `/dev/vda`,
+serial `psycachy-linux`, appeared; its erase checkbox remained clear. The
+QEMU monitor confirmed the protected 64 GiB sentinel disk and ISO were
+read-only. The post-run sentinel checksum and pattern read, both QCOW checks,
+and the ISO checksum passed. The monitor quit the VM without a target
+selection or install. Private screenshot and serial log remain under
+`output/amd64-iso-liveboot-20261115-promptfix/`; see the updated
+[prompt-fix report](amd64-lifecycle-iso-promptfix-20261115.md).
+
+This closes the exact-hash boot-smoke gate only. Disposable installation,
+acknowledgement, promotion, rollback, Secure Boot, and fallback checks remain
+open. No Ventoy replacement or physical-media boot occurred.

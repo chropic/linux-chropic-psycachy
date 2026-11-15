@@ -1,9 +1,10 @@
 # AMD64 lifecycle ISO rebuild with activation-prompt fix — 2026-11-15
 
-**Recorded:** 2026-11-15 21:21 UTC / 14:21 MST
+**Recorded:** 2026-11-15 22:45 UTC / 15:45 MST
 **Repository:** `feature/linux-chropic-psycachy-b550i-sp121` at `da3bb62`
-**Result:** corrected candidate built and independently audited; new-hash VM
-boot smoke and lifecycle sequence remain open.
+**Result:** corrected candidate built and independently audited; exact-hash
+network-disabled KVM smoke passed to the guarded disk selector. Disposable
+installation and lifecycle sequence remain open.
 
 ## Candidate identity
 
@@ -85,15 +86,45 @@ artifact audits, not an installed-system result.
 ## Capacity and qualification boundary
 
 Immediately after the build, local `/` had 104,519,655,424 bytes free
-(97.3 GiB), 17.3 GiB above the 80 GiB reserve. The previously observed full
-disposable target allocation of 12,715,630,592 bytes would leave about
-5.5 GiB above that reserve. The upcoming boot smoke uses fresh sparse QCOWs;
-monitor capacity before any full installation or scenario that grows them.
+(97.3 GiB), 17.3 GiB above the 80 GiB reserve. After the KVM smoke, free space
+was 104,746,668,032 bytes (97.55 GiB), 17.55 GiB above the reserve. The
+previously observed full disposable target allocation of 12,715,630,592 bytes
+would leave about 5.71 GiB above it. Monitor capacity during each lifecycle
+scenario and stop before free space falls below 80 GiB.
 
-No VM boot of this exact hash, disposable installation, activation,
-acknowledgement, promotion, rollback, media replacement, Apple HDD write,
-firmware change, or exact-hardware test has occurred. The next gate is a
-network-disabled UEFI/KVM smoke of this exact hash, stopping at the guarded
-disk selector. `/dev/kvm` is root-owned by group `kvm`; the current user needs
-interactive sudo for KVM access. Do not select an installer target during
-that smoke.
+No disposable installation, activation, acknowledgement, promotion, rollback,
+media replacement, Apple HDD write, firmware change, or exact-hardware test
+has occurred. The exact-hash network-disabled KVM smoke passed to the guarded
+disk selector and stopped with its only listed target unchecked, as detailed
+below. `/dev/kvm` is root-owned by group `kvm`; launching each KVM scenario
+requires supervised interactive sudo.
+
+## Follow-up — exact-hash KVM boot smoke
+
+The corrected ISO was booted on 2026-11-15 with QEMU 11.0.3, KVM acceleration
+and host CPU features, 2 vCPUs, 4 GiB RAM, no network, and a fresh insecure
+OVMF variable store. It reached the Ubuntu desktop's guarded dedicated-disk
+selector. The selector listed only `/dev/vda`, serial `psycachy-linux`, size
+68.7 GB; its erase checkbox was clear. No target or install mode was selected.
+
+The QEMU monitor reported the writable 64 GiB `linux.qcow2`, the separate
+64 GiB `other.qcow2` attached read-only, and the ISO attached read-only.
+`tests/iso-vm.sh verify-other` passed after shutdown, including the saved
+sentinel checksum and 1 MiB pattern read. `qemu-img check` passed for both
+QCOWs, and the candidate ISO's `SHA256SUMS` returned `OK`. The monitor's
+`quit` command stopped QEMU; the process and port 4513 are closed.
+
+Private local evidence remains under
+`output/amd64-iso-liveboot-20261115-promptfix/`: the selector capture
+`selector-screen.png` (SHA-256
+`b2f14cd99dda5fad55f59001396974e771ef87428e4244ffdebd9c6ac33d7e10`) and
+`serial.log` (SHA-256
+`575fe3b7fce03fa94ddbbd45a9b640a2fea6ced38449167ae6b8f32747fca117`). The
+protected disk remains intact at SHA-256
+`b7f1ada63281ed7e5bc7127dffbfc4c91582fab3080133b01a966c7624d97bb6`.
+
+This smoke used Secure Boot disabled and stopped before installation. It does
+not qualify Secure Boot, installed-system boot, acknowledgement, promotion,
+rollback, or physical B550I behavior. The next software gate is the separate
+disposable install and lifecycle sequence; the corrected ISO remains off
+Ventoy.
