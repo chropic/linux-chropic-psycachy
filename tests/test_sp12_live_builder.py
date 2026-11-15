@@ -2,7 +2,10 @@
 import hashlib
 import importlib.util
 import json
+import os
 import pathlib
+import stat
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -115,6 +118,8 @@ class Sp12LiveBuilderTests(unittest.TestCase):
         self.assertNotIn("maybe-ubiquity", live_line)
         self.assertNotIn("autoinstall", live_line)
         self.assertNotIn("Install Ubuntu", result)
+        self.assertNotIn('Install SP12 (guarded)', result)
+        self.assertNotIn('generic QEMU diagnostic', result)
 
     def test_live_grub_rejects_autoinstall_and_ambiguous_layout(self):
         with self.assertRaisesRegex(RuntimeError, "Refusing an autoinstall"):
@@ -136,6 +141,236 @@ class Sp12LiveBuilderTests(unittest.TestCase):
                 ' linux /casper/vmlinuz --- quiet\n}\n'
                 'menuentry "Other" {\n'
                 ' set autoinstall=quiet\n}\n')
+
+    def test_installer_menu_is_separate_guarded_and_keeps_generic_qemu_path(self):
+        source = (
+            'set timeout=30\n'
+            'menuentry "Try or Install Ubuntu" {\n'
+            '  linux /casper/vmlinuz quiet maybe-ubiquity splash ---\n'
+            '  initrd /casper/initrd\n'
+            '}\n'
+            "menuentry 'Boot from next volume' {\n  exit 1\n}\n"
+        )
+        result = BUILDER.grub_config(source, private_support=True, installer_enabled=True)
+        try_entry = result.split('menuentry "Try SP12 Ubuntu', 1)[1].split('\n}', 1)[0]
+        install_entry = result.split('menuentry "Install SP12 (guarded)"', 1)[1].split('\n}', 1)[0]
+        diagnostic_entry = result.split(
+            'menuentry "Install SP12 (generic QEMU diagnostic)"', 1)[1].split('\n}', 1)[0]
+        self.assertLess(result.index('Try SP12 Ubuntu'), result.index('Install SP12'))
+        self.assertNotIn('autoinstall', try_entry)
+        self.assertIn('autoinstall', install_entry)
+        self.assertEqual(install_entry.count('devicetree ' + BUILDER.LIVE_DTB), 1)
+        self.assertEqual(result.count('insmod fdt'), 2)
+        self.assertIn('/casper/vmlinuz', install_entry)
+        self.assertNotIn('devicetree', diagnostic_entry)
+        self.assertEqual(diagnostic_entry.count('autoinstall'), 1)
+        self.assertIn('/casper/qemu-vmlinuz', diagnostic_entry)
+        self.assertIn('/casper/qemu-initrd', diagnostic_entry)
+        self.assertIn("menuentry 'Boot from next volume'", result)
+
+    def test_installer_autoinstall_adds_support_after_guarded_target_install(self):
+        original = (
+            'version: 1\n'
+            'early-commands:\n'
+            '  - [python3, /cdrom/psycachy/select-disk.py]\n'
+            "interactive-sections:\n  - '*'\n"
+            'late-commands:\n'
+            '  - [bash, /cdrom/psycachy/install-arm64-target.sh]\n'
+        )
+        result = BUILDER.installer_autoinstall_config(original)
+        self.assertLess(result.index('select-disk.py'), result.index('install-arm64-target.sh'))
+        self.assertLess(result.index('install-arm64-target.sh'),
+                        result.index('install-private-support.sh'))
+        self.assertIn("interactive-sections:\n  - '*'", result)
+        with self.assertRaisesRegex(RuntimeError, 'guarded early disk selector'):
+            BUILDER.installer_autoinstall_config(original.replace('select-disk.py', 'other.py'))
+        with self.assertRaisesRegex(RuntimeError, 'all installer sections interactive'):
+            BUILDER.installer_autoinstall_config(original.replace("  - '*'", '  - identity'))
+
+    def test_installer_checksum_is_required_and_exact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            iso = pathlib.Path(temporary) / 'installer.iso'
+            iso.write_bytes(b'pinned installer image')
+            digest = hashlib.sha256(iso.read_bytes()).hexdigest()
+            self.assertEqual(BUILDER.validate_installer_checksum(iso, digest), digest)
+            with self.assertRaisesRegex(RuntimeError, 'exact lowercase SHA-256'):
+                BUILDER.validate_installer_checksum(iso, None)
+            with self.assertRaisesRegex(RuntimeError, 'differs from the supplied checksum'):
+                BUILDER.validate_installer_checksum(iso, '0' * 64)
+
+    def test_installer_snapshot_is_private_hashed_and_isolated_from_source_replacement(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = pathlib.Path(temporary)
+            source = parent / 'source.iso'
+            original = b'installer snapshot fixture bytes'
+            source.write_bytes(original)
+            digest = hashlib.sha256(original).hexdigest()
+            with BUILDER.private_installer_snapshot(source, digest, parent=parent) as (
+                    snapshot, snapshot_hash):
+                self.assertEqual(snapshot_hash, digest)
+                self.assertEqual(stat.S_IMODE(snapshot.parent.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o600)
+                source.write_bytes(b'mutated source bytes')
+                source.unlink()
+                source.write_bytes(b'replaced source path')
+                self.assertEqual(snapshot.read_bytes(), original)
+                calls = []
+
+                def fake_run(*args, **kwargs):
+                    calls.append(args)
+                    index = args.index('-indev') + 1
+                    self.assertEqual(pathlib.Path(args[index]), snapshot)
+                    self.assertEqual(pathlib.Path(args[index]).read_bytes(), original)
+
+                with mock.patch.object(BUILDER, 'run', side_effect=fake_run):
+                    BUILDER.extract_installer_validation_files(
+                        snapshot, parent / 'metadata', 'xorriso',
+                        BUILDER.ISO_MODULE.validate_pin_pair(
+                            BUILDER.load_json(ROOT / 'config/arm64-iso-kernel-r2.json')))
+                self.assertEqual(len(calls), 1)
+            self.assertFalse(snapshot.parent.exists())
+            with self.assertRaisesRegex(RuntimeError, 'snapshot hash differs'):
+                with BUILDER.private_installer_snapshot(source, digest, parent=parent):
+                    self.fail('mismatched snapshot hash must not be yielded')
+
+    def test_installer_embedded_pin_and_package_pair_match_selected_pin(self):
+        pin = BUILDER.load_json(ROOT / 'config/arm64-iso-kernel-r2.json')
+        bundle_files = {
+            'linux-image.deb': next(item for item in pin['packages']
+                                    if item['name'].startswith('linux-image-')),
+            'linux-headers.deb': next(item for item in pin['packages']
+                                      if item['name'].startswith('linux-headers-')),
+        }
+        package_report = {
+            'status': 'verified-package-structure',
+            'kernel_release': pin['kernel_release'],
+            'package_version': pin['debian_version'],
+            'architecture': pin['architecture'],
+            'image_package': {'sha256': bundle_files['linux-image.deb']['sha256']},
+            'headers_package': {'sha256': bundle_files['linux-headers.deb']['sha256']},
+            'dtb': {'path': pin['dtb_path'], 'sha256': pin['dtb_sha256']},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary) / 'psycachy'
+            (root / 'config').mkdir(parents=True)
+            (root / 'kernel-bundle').mkdir()
+            (root / 'repository').mkdir()
+            (root / 'config/arm64-iso-kernel.json').write_text(json.dumps(pin))
+            bundle_manifest = {
+                'schema': 1,
+                'target': 'sp121-arm64',
+                'status': 'verified-target-installer-bundle',
+                'kernel_pin_sha256': hashlib.sha256(
+                    (root / 'config/arm64-iso-kernel.json').read_bytes()).hexdigest(),
+                'kernel_release': pin['kernel_release'],
+                'package_version': pin['debian_version'],
+                'architecture': pin['architecture'],
+                'dtb_path': pin['dtb_path'],
+                'dtb_sha256': pin['dtb_sha256'],
+                'files': {name: item['sha256'] for name, item in bundle_files.items()},
+            }
+            (root / 'kernel-bundle/bundle-manifest.json').write_text(json.dumps(bundle_manifest))
+            (root / 'kernel-bundle/package-verification.json').write_text(json.dumps(package_report))
+            bundle_sum_rows = []
+            repo_sum_rows = []
+            digest_by_name = {}
+            for alias, item in bundle_files.items():
+                data = ('fixture:' + alias).encode()
+                digest_by_name[alias] = item['sha256']
+                digest_by_name[item['filename']] = item['sha256']
+                (root / 'kernel-bundle' / alias).write_bytes(data)
+                (root / 'repository' / item['filename']).write_bytes(data)
+                bundle_sum_rows.append(f"{item['sha256']}  {alias}")
+                repo_sum_rows.append(f"{item['sha256']}  {item['filename']}")
+            (root / 'kernel-bundle/SHA256SUMS').write_text('\n'.join(bundle_sum_rows) + '\n')
+            (root / 'repository/SHA256SUMS').write_text('\n'.join(repo_sum_rows) + '\n')
+            autoinstall = pathlib.Path(temporary) / 'autoinstall.yaml'
+            autoinstall.write_text(
+                'version: 1\nearly-commands:\n'
+                '  - [python3, /cdrom/psycachy/select-disk.py]\n'
+                "interactive-sections:\n  - '*'\n"
+                'late-commands:\n'
+                '  - [bash, /cdrom/psycachy/install-arm64-target.sh]\n')
+
+            def fake_sha(path):
+                path = pathlib.Path(path)
+                if path.name in digest_by_name:
+                    return digest_by_name[path.name]
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+
+            def fake_output(*args):
+                package_path = pathlib.Path(args[2])
+                alias = package_path.name
+                item = bundle_files.get(alias)
+                if item is None:
+                    item = next(value for value in bundle_files.values()
+                                if value['filename'] == alias)
+                return (f"Package: {item['name']}\nVersion: {pin['debian_version']}\n"
+                        f"Architecture: {pin['architecture']}\n")
+
+            with mock.patch.object(BUILDER, 'sha', side_effect=fake_sha), \
+                    mock.patch.object(BUILDER, 'output', side_effect=fake_output):
+                summary = BUILDER.validate_installer_payload(root, autoinstall, pin, 'a' * 64)
+            self.assertEqual(summary['kernel_release'], pin['kernel_release'])
+            self.assertEqual(summary['package_version'], pin['debian_version'])
+            self.assertEqual(summary['package_hashes'], {
+                item['filename']: item['sha256'] for item in pin['packages']})
+
+            changed_pin = dict(pin)
+            changed_pin['debian_version'] = '7.3.1-1wrong'
+            with self.assertRaisesRegex(RuntimeError, 'pin differs from the selected'):
+                BUILDER.validate_installer_payload(root, autoinstall, changed_pin, 'a' * 64)
+
+            with mock.patch.object(BUILDER, 'sha', side_effect=lambda path: '0' * 64
+                                   if pathlib.Path(path).name == 'linux-image.deb'
+                                   else fake_sha(path)), \
+                    mock.patch.object(BUILDER, 'output', side_effect=fake_output):
+                with self.assertRaisesRegex(RuntimeError, 'package differs from selected pin'):
+                    BUILDER.validate_installer_payload(root, autoinstall, pin, 'a' * 64)
+
+    def test_generated_target_support_installer_verifies_copy_initramfs_and_esp(self):
+        support = BUILDER.load_support_pin()['machine_files']
+        support = dict(support)
+        support['usr/lib/firmware/qcom/x1e80100/source-tree.bin'] = 'a' * 64
+        script = BUILDER.private_support_install_script(support)
+        manifest = BUILDER.private_support_manifest(support)
+        self.assertIn('SHA256SUMS', script)
+        self.assertIn(hashlib.sha256(manifest.encode()).hexdigest(), script)
+        for relative, digest in support.items():
+            self.assertIn(digest + '\t' + relative, manifest)
+        self.assertIn('install -m 0644', script)
+        self.assertIn('realpath -e "$source"', script)
+        self.assertIn('target_hash=$(sha256sum "$destination"', script)
+        self.assertIn('update-initramfs -u -k "$release"', script)
+        self.assertIn('cmp -s -- "$initrd" "$esp_initrd"', script)
+        self.assertIn('dpkg --root="$target" --audit', script)
+        parsed = subprocess.run(
+            ["bash", "-c", "while IFS=$'\\t' read -r hash path; do printf '%s|%s\\n' \"$hash\" \"$path\"; done"],
+            input=manifest, text=True, capture_output=True, check=True)
+        self.assertEqual(
+            parsed.stdout.splitlines(),
+            [digest + '|' + relative for relative, digest in sorted(support.items())])
+
+    def test_source_allowlist_is_hashed_at_target_paths_and_rejects_escaping_links(self):
+        support_pin = BUILDER.load_support_pin()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            (root / 'lib/firmware/qcom/x1e80100').mkdir(parents=True)
+            (root / 'usr/share/qcom').mkdir(parents=True)
+            a = root / 'lib/firmware/qcom/x1e80100/platform.bin'
+            b = root / 'usr/share/qcom/device.conf'
+            a.write_bytes(b'platform')
+            b.write_bytes(b'device')
+            result = BUILDER.collect_source_support(root, support_pin)
+            self.assertEqual(result, {
+                'usr/lib/firmware/qcom/x1e80100/platform.bin': hashlib.sha256(b'platform').hexdigest(),
+                'usr/share/qcom/device.conf': hashlib.sha256(b'device').hexdigest(),
+            })
+            outside = root.parent / 'outside-support'
+            outside.write_bytes(b'outside')
+            (root / 'usr/share/qcom/escape').symlink_to(outside)
+            with self.assertRaisesRegex(RuntimeError, 'escaping link'):
+                BUILDER.collect_source_support(root, support_pin)
 
     def test_kernel_module_and_dtb_identity_are_checked(self):
         kernel_bytes = b"pinned kernel fixture"

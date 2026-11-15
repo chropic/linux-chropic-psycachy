@@ -7,6 +7,7 @@ with that support may be published by this project. File hashes and provenance
 are pinned in config/sp121-live-support.json; machine files stay outside Git.
 """
 import argparse
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -16,6 +17,7 @@ import re
 import shutil
 import subprocess
 import struct
+import stat
 import sys
 import tarfile
 import tempfile
@@ -109,7 +111,7 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def grub_config(text, private_support=False):
+def grub_config(text, private_support=False, installer_enabled=False):
     lines = text.splitlines(keepends=True)
     matches = [index for index, line in enumerate(lines)
                if re.match(r'^\s*linux(?:efi)?\s+/casper/vmlinuz(?:\s|$)', line)]
@@ -140,7 +142,406 @@ def grub_config(text, private_support=False):
             'Autoinstall remains enabled in the SP12 live menu')
     require(result.count('devicetree ' + LIVE_DTB) == 1,
             'SP12 live menu does not select exactly one pinned DTB')
+    return append_installer_menu(result) if installer_enabled else result
+
+
+def append_installer_menu(text):
+    """Add explicit installer and generic-QEMU entries without changing default."""
+    require(text.count('Try SP12 Ubuntu 26.10') == 1,
+            'Expected exactly one default SP12 Try entry before installer menus')
+    install = (
+        '\nmenuentry "Install SP12 (guarded)" {\n'
+        '    insmod fdt\n'
+        '    devicetree ' + LIVE_DTB + '\n'
+        '    set gfxpayload=keep\n'
+        '    linux /casper/vmlinuz boot=casper layerfs-path=' + LAYER +
+        ' cma=128M efi=noruntime autoinstall --- quiet splash console=tty0\n'
+        '    initrd /casper/initrd\n'
+        '}\n'
+        'menuentry "Install SP12 (generic QEMU diagnostic)" {\n'
+        '    set gfxpayload=keep\n'
+        '    linux /casper/qemu-vmlinuz boot=casper autoinstall --- quiet splash console=tty0\n'
+        '    initrd /casper/qemu-initrd\n'
+        '}\n'
+    )
+    result = text.rstrip() + '\n' + install
+    require(result.count('menuentry "Install SP12 (guarded)"') == 1,
+            'SP12 installer menu entry is missing or duplicated')
+    require(result.count('devicetree ' + LIVE_DTB) == 2,
+            'Install and Try entries must use the pinned SP12 DTB')
+    generic = re.search(r'(?ms)menuentry "Install SP12 \(generic QEMU diagnostic\)"\s*\{([^}]*)\}',
+                        result)
+    require(generic is not None and 'devicetree' not in generic.group(1),
+            'Generic QEMU diagnostic entry must not use the Surface DTB')
+    require(re.search(r'(?ms)menuentry "Try SP12 Ubuntu 26\.10[^\"]*"\s*\{([^}]*)\}',
+                      result).group(1).find('autoinstall') == -1,
+            'Default SP12 Try entry must not enable autoinstall')
+    require(re.search(r'(?ms)menuentry "Install SP12 \(guarded\)"\s*\{([^}]*)\}',
+                      result).group(1).count('autoinstall') == 1,
+            'Explicit SP12 installer entry must use the guarded autoinstall flow')
     return result
+
+
+def installer_autoinstall_config(text):
+    """Require the installer ISO's interactive selector and target late command."""
+    require(text.count('/cdrom/psycachy/select-disk.py') == 1
+            and re.search(r'(?m)^early-commands:\s*$', text),
+            'Installer ISO must use the guarded early disk selector')
+    require(re.search(r"(?ms)^interactive-sections:\s*\n[ \t]+-[ \t]*['\"]?\*['\"]?[ \t]*\n",
+                      text),
+            'Installer ISO must keep all installer sections interactive')
+    require(text.count('/cdrom/psycachy/install-arm64-target.sh') == 1
+            and re.search(r'(?m)^late-commands:\s*$', text),
+            'Installer ISO must use the guarded target late-install flow')
+    require(not re.search(r'(?m)^storage\s*:', text),
+            'Installer ISO must not bypass the explicit disk selector')
+    lines = text.splitlines(keepends=True)
+    matches = [index for index, line in enumerate(lines)
+               if re.fullmatch(r"[ \t]*-[ \t]*\[bash,[ \t]*/cdrom/psycachy/install-arm64-target\.sh\][ \t]*(?:\n)?",
+                               line)]
+    require(len(matches) == 1, 'Installer late-install command layout is ambiguous')
+    require(text.count('/cdrom/psycachy/install-private-support.sh') == 0,
+            'Installer config already contains the SP12 support late command')
+    lines.insert(matches[0] + 1,
+                 '  - [bash, /cdrom/psycachy/install-private-support.sh]\n')
+    return ''.join(lines)
+
+
+def private_support_manifest(support_files):
+    """Serialize the exact target support tree copied from validated inputs."""
+    lines = []
+    for relative, digest in sorted(support_files.items()):
+        path = Path(relative)
+        require(not path.is_absolute() and '..' not in path.parts
+                and path.as_posix() == relative
+                and '\t' not in relative and '\n' not in relative
+                and re.fullmatch(r'[0-9a-f]{64}', digest) is not None,
+                'Private target support manifest contains an unsafe path or hash')
+        lines.append(f'{digest}\t{relative}')
+    require(lines, 'Private target support manifest is empty')
+    return '\n'.join(lines) + '\n'
+
+
+def collect_source_support(extracted, support_pin):
+    """Hash the commit-pinned source trees using their target installation paths."""
+    root = Path(extracted).resolve(strict=True)
+    result = {}
+    for source_tree in support_pin['source_allowlist']:
+        source_root = root / source_tree
+        require(source_root.is_dir() and not source_root.is_symlink(),
+                'Pinned source support tree is missing or unsafe: ' + source_tree)
+        for current, directories, files in os.walk(source_root, followlinks=False):
+            current_path = Path(current)
+            for dirname in directories:
+                candidate = current_path / dirname
+                require(not candidate.is_symlink()
+                        and candidate.resolve(strict=True).is_relative_to(root),
+                        'Pinned source support tree contains an unsafe directory symlink')
+            for filename in files:
+                candidate = current_path / filename
+                relative = candidate.relative_to(root).as_posix()
+                resolved = candidate.resolve(strict=True)
+                require(resolved.is_relative_to(root) and resolved.is_file(),
+                        'Pinned source support tree contains a non-file or escaping link: '
+                        + relative)
+                target_relative = 'usr/' + relative if relative.startswith('lib/') else relative
+                require(target_relative not in result,
+                        'Pinned source support trees have a target path collision: ' + target_relative)
+                result[target_relative] = sha(resolved)
+    return result
+
+
+def private_support_install_script(support_files):
+    """Create a late command installing the generated path/hash manifest."""
+    manifest = private_support_manifest(support_files)
+    manifest_hash = hashlib.sha256(manifest.encode()).hexdigest()
+    lines = [
+        '#!/usr/bin/env bash',
+        'set -Eeuo pipefail',
+        'IFS=$\'\\n\\t\'',
+        'target=/target',
+        'media=/cdrom/psycachy/private-support',
+        'die() { echo "SP12 private support install: $*" >&2; exit 1; }',
+        '[[ -d $target/etc && -d $media ]] || die "target or private support files are missing"',
+        'pin=/cdrom/psycachy/config/arm64-iso-kernel.json',
+        'identity_tool=/cdrom/psycachy/iso/kernel_identity.py',
+        'identity_args=()',
+        'if [[ -f /cdrom/psycachy/config/arm64-kernel-identity.json ]]; then',
+        '  identity_args=(--identity /cdrom/psycachy/config/arm64-kernel-identity.json)',
+        'fi',
+        'release=$(python3 "$identity_tool" "${identity_args[@]}" --artifact-pin "$pin" --field kernel_release)',
+        '[[ -n $release ]] || die "cannot resolve the pinned kernel release"',
+        'manifest=$media/SHA256SUMS',
+        f'expected_manifest_hash={manifest_hash}',
+        '[[ -f $manifest && ! -L $manifest ]] || die "support manifest is missing or unsafe"',
+        'manifest_hash=$(sha256sum "$manifest" | awk \'{print $1}\')',
+        '[[ $manifest_hash == "$expected_manifest_hash" ]] || die "support manifest hash differs"',
+        "while IFS=$'\\t' read -r expected relative; do",
+        '  [[ -n $expected && -n $relative && $relative != /* && $relative != *..* ]] || die "unsafe support manifest row"',
+        '  source=$media/$relative',
+        '  destination=$target/$relative',
+        '  [[ -f $source && ! -L $source ]] || die "missing regular support source: $relative"',
+        '  source_resolved=$(realpath -e "$source")',
+        '  [[ $source_resolved == "$media"/* ]] || die "support source escapes media: $relative"',
+        '  source_hash=$(sha256sum "$source" | awk \'{print $1}\')',
+        '  [[ $source_hash == "$expected" ]] || die "support source hash differs: $relative"',
+        '  mkdir -p -- "$(dirname "$destination")"',
+        '  [[ ! -L $destination ]] || die "refusing support destination symlink: $relative"',
+        '  resolved=$(realpath -m "$destination")',
+        '  [[ $resolved == "$target"/* ]] || die "support destination escapes target: $relative"',
+        '  install -m 0644 -- "$source" "$destination"',
+        '  target_hash=$(sha256sum "$destination" | awk \'{print $1}\')',
+        '  [[ $target_hash == "$expected" ]] || die "installed support hash differs: $relative"',
+        'done < "$manifest"',
+    ]
+    lines.extend([
+        'curtin in-target --target="$target" -- update-initramfs -u -k "$release"',
+        'initrd=$target/boot/initrd.img-$release',
+        'esp_initrd=$target/boot/efi/sp12/initrd.img',
+        '[[ -s $initrd && ! -L $initrd ]] || die "regenerated target initramfs is missing"',
+        '[[ -f $esp_initrd && ! -L $esp_initrd ]] || die "SP12 ESP initramfs is missing after update"',
+        'cmp -s -- "$initrd" "$esp_initrd" || die "SP12 ESP initramfs was not synchronized"',
+        'audit=$(dpkg --root="$target" --audit)',
+        '[[ -z $audit ]] || die "target dpkg audit is not clean: $audit"',
+        'echo "Installed and hash-verified SP12 support manifest; regenerated and synchronized $release initramfs."',
+        '',
+    ])
+    return '\n'.join(lines)
+
+
+def validate_installer_checksum(installer_iso, expected_sha256):
+    require(isinstance(expected_sha256, str)
+            and re.fullmatch(r'[0-9a-f]{64}', expected_sha256) is not None,
+            'Installer ISO requires an exact lowercase SHA-256 checksum')
+    path = Path(installer_iso)
+    require(path.is_file() and not path.is_symlink(),
+            'Installer ISO must be a regular non-symlink file')
+    actual = sha(path)
+    require(actual == expected_sha256, 'Installer ISO hash differs from the supplied checksum')
+    return actual
+
+
+@contextmanager
+def private_installer_snapshot(installer_iso, expected_sha256, parent=None,
+                               expected_size=None):
+    """Make a private stable ISO snapshot while hashing exactly the copied bytes."""
+    require(isinstance(expected_sha256, str)
+            and re.fullmatch(r'[0-9a-f]{64}', expected_sha256) is not None,
+            'Installer ISO requires an exact lowercase SHA-256 checksum')
+    source_path = Path(installer_iso)
+    source_lstat = source_path.lstat()
+    require(stat.S_ISREG(source_lstat.st_mode),
+            'Installer ISO source must be a regular non-symlink file')
+    temporary = tempfile.TemporaryDirectory(prefix='.sp12-installer-snapshot.', dir=parent)
+    try:
+        temporary_path = Path(temporary.name)
+        os.chmod(temporary_path, 0o700)
+        snapshot_path = temporary_path / 'installer.iso'
+        source_fd = os.open(source_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        destination_fd = None
+        try:
+            source_before = os.fstat(source_fd)
+            require(stat.S_ISREG(source_before.st_mode)
+                    and (source_before.st_dev, source_before.st_ino) ==
+                    (source_lstat.st_dev, source_lstat.st_ino),
+                    'Installer ISO source changed during safe open')
+            require(expected_size is None or source_before.st_size == expected_size,
+                    'Installer ISO source size changed before snapshot')
+            destination_fd = os.open(
+                snapshot_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+                0o600)
+            digest = hashlib.sha256()
+            copied = 0
+            while True:
+                block = os.read(source_fd, 1024 * 1024)
+                if not block:
+                    break
+                require(expected_size is None or copied + len(block) <= expected_size,
+                        'Installer ISO source grew beyond its checked size')
+                digest.update(block)
+                copied += len(block)
+                view = memoryview(block)
+                while view:
+                    written = os.write(destination_fd, view)
+                    require(written > 0, 'Short write while copying installer ISO snapshot')
+                    view = view[written:]
+            os.fsync(destination_fd)
+            destination_stat = os.fstat(destination_fd)
+            source_after = os.fstat(source_fd)
+            source_path_after = source_path.lstat()
+            require(stat.S_ISREG(destination_stat.st_mode)
+                    and stat.S_IMODE(destination_stat.st_mode) == 0o600
+                    and destination_stat.st_size == copied,
+                    'Installer ISO snapshot is not the expected regular private file')
+            source_identity_before = (source_before.st_dev, source_before.st_ino,
+                                      source_before.st_size, source_before.st_mtime_ns,
+                                      source_before.st_ctime_ns)
+            source_identity_after = (source_after.st_dev, source_after.st_ino,
+                                     source_after.st_size, source_after.st_mtime_ns,
+                                     source_after.st_ctime_ns)
+            require(stat.S_ISREG(source_after.st_mode)
+                    and source_identity_after == source_identity_before
+                    and (expected_size is None or copied == expected_size)
+                    and stat.S_ISREG(source_path_after.st_mode)
+                    and (source_path_after.st_dev, source_path_after.st_ino) ==
+                    (source_after.st_dev, source_after.st_ino),
+                    'Installer ISO source changed while being snapshotted')
+        finally:
+            os.close(source_fd)
+            if destination_fd is not None:
+                os.close(destination_fd)
+        directory_fd = os.open(temporary_path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        snapshot_stat = snapshot_path.lstat()
+        require(stat.S_ISREG(snapshot_stat.st_mode)
+                and stat.S_IMODE(snapshot_stat.st_mode) == 0o600
+                and (snapshot_stat.st_dev, snapshot_stat.st_ino) ==
+                (destination_stat.st_dev, destination_stat.st_ino),
+                'Installer ISO snapshot path no longer identifies its private regular file')
+        actual = digest.hexdigest()
+        require(actual == expected_sha256,
+                'Installer ISO snapshot hash differs from the supplied checksum')
+        yield snapshot_path, actual
+    finally:
+        temporary.cleanup()
+
+
+def validate_installer_payload(installer_root, autoinstall_path, selected_pin,
+                               installer_iso_sha256):
+    """Verify the embedded installer pin, package pair, and guarded flow."""
+    root = Path(installer_root)
+    pin_path = root / 'config/arm64-iso-kernel.json'
+    manifest_path = root / 'kernel-bundle/bundle-manifest.json'
+    bundle_sums_path = root / 'kernel-bundle/SHA256SUMS'
+    verification_path = root / 'kernel-bundle/package-verification.json'
+    repository_sums_path = root / 'repository/SHA256SUMS'
+    for path in (pin_path, manifest_path, bundle_sums_path, verification_path,
+                 repository_sums_path):
+        require(path.is_file() and not path.is_symlink(),
+                'Installer ISO is missing a regular pinned metadata file: ' + str(path.relative_to(root)))
+    embedded_pin = ISO_MODULE.validate_pin_pair(load_json(pin_path))
+    require(embedded_pin == selected_pin,
+            'Installer ISO kernel pin differs from the selected kernel pin')
+    pin_digest = sha(pin_path)
+    manifest = load_json(manifest_path)
+    require(manifest.get('schema') == 1 and manifest.get('target') == 'sp121-arm64'
+            and manifest.get('status') == 'verified-target-installer-bundle',
+            'Installer bundle manifest has an unsupported identity or status')
+    require(manifest.get('kernel_pin_sha256') == pin_digest,
+            'Installer bundle manifest does not match its embedded kernel pin')
+    for field, pin_field in (('kernel_release', 'kernel_release'),
+                             ('package_version', 'debian_version'),
+                             ('architecture', 'architecture'),
+                             ('dtb_path', 'dtb_path'), ('dtb_sha256', 'dtb_sha256')):
+        require(manifest.get(field) == selected_pin[pin_field],
+                'Installer bundle manifest differs from selected pin: ' + field)
+    packages = {item['name']: item for item in selected_pin['packages']}
+    aliases = {
+        'linux-image.deb': next(item for item in packages.values()
+                                if item['name'].startswith('linux-image-')),
+        'linux-headers.deb': next(item for item in packages.values()
+                                  if item['name'].startswith('linux-headers-')),
+    }
+    require(manifest.get('files') == {name: item['sha256'] for name, item in aliases.items()},
+            'Installer bundle package hashes differ from selected pin')
+    bundle_sums = ISO_MODULE.parse_sha256sums(bundle_sums_path)
+    repo_sums = ISO_MODULE.parse_sha256sums(repository_sums_path)
+    package_report = load_json(verification_path)
+    require(package_report.get('status') == 'verified-package-structure'
+            and package_report.get('kernel_release') == selected_pin['kernel_release']
+            and package_report.get('package_version') == selected_pin['debian_version']
+            and package_report.get('architecture') == selected_pin['architecture'],
+            'Installer package verification identity differs from selected pin')
+    for alias, item in aliases.items():
+        package = root / 'kernel-bundle' / alias
+        repo_package = root / 'repository' / item['filename']
+        require(package.is_file() and not package.is_symlink()
+                and sha(package) == item['sha256'],
+                'Installer kernel bundle package differs from selected pin: ' + alias)
+        require(repo_package.is_file() and not repo_package.is_symlink()
+                and sha(repo_package) == item['sha256'],
+                'Installer repository package differs from selected pin: ' + item['filename'])
+        require(bundle_sums.get(alias) == item['sha256']
+                and repo_sums.get(item['filename']) == item['sha256'],
+                'Installer package checksum index differs from selected pin: ' + alias)
+        control = output('dpkg-deb', '-f', package, 'Package', 'Version', 'Architecture')
+        fields = {}
+        for line in control.splitlines():
+            key, value = line.split(': ', 1)
+            fields[key] = value
+        require(fields.get('Package') == item['name']
+                and fields.get('Version') == selected_pin['debian_version']
+                and fields.get('Architecture') == selected_pin['architecture'],
+                'Installer package metadata differs from selected pin: ' + alias)
+        repository_control = output('dpkg-deb', '-f', repo_package,
+                                    'Package', 'Version', 'Architecture')
+        require(repository_control == control,
+                'Installer repository package metadata differs from kernel bundle: ' + alias)
+    image = next(item for item in packages.values() if item['name'].startswith('linux-image-'))
+    headers = next(item for item in packages.values() if item['name'].startswith('linux-headers-'))
+    require(package_report.get('image_package', {}).get('sha256') == image['sha256']
+            and package_report.get('headers_package', {}).get('sha256') == headers['sha256'],
+            'Installer package-verification record differs from selected package pair')
+    require(package_report.get('dtb', {}).get('path') == selected_pin['dtb_path']
+            and package_report.get('dtb', {}).get('sha256') == selected_pin['dtb_sha256'],
+            'Installer DTB verification record differs from selected pin')
+    guarded_config = installer_autoinstall_config(
+        Path(autoinstall_path).read_text(encoding='utf-8'))
+    return {
+        'iso_sha256': installer_iso_sha256,
+        'kernel_pin_sha256': pin_digest,
+        'kernel_release': selected_pin['kernel_release'],
+        'package_version': selected_pin['debian_version'],
+        'package_hashes': {item['filename']: item['sha256']
+                           for item in selected_pin['packages']},
+        'autoinstall_sha256': hashlib.sha256(guarded_config.encode()).hexdigest(),
+    }
+
+
+def extract_installer_validation_files(installer_iso, destination, xorriso, selected_pin):
+    """Extract only the metadata and pinned package pair needed for preflight."""
+    root = Path(destination)
+    root.mkdir(parents=True, exist_ok=True)
+    paths = [
+        '/autoinstall.yaml',
+        '/psycachy/config/arm64-iso-kernel.json',
+        '/psycachy/kernel-bundle/bundle-manifest.json',
+        '/psycachy/kernel-bundle/SHA256SUMS',
+        '/psycachy/kernel-bundle/package-verification.json',
+        '/psycachy/kernel-bundle/linux-image.deb',
+        '/psycachy/kernel-bundle/linux-headers.deb',
+        '/psycachy/repository/SHA256SUMS',
+    ]
+    for item in selected_pin['packages']:
+        paths.append('/psycachy/repository/' + item['filename'])
+    arguments = [xorriso, '-osirrox', 'on', '-indev', installer_iso]
+    for source in paths:
+        relative = Path(source.lstrip('/'))
+        output_path = root / relative
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        arguments.extend(['-extract', source, output_path])
+    arguments.append('-end')
+    run(*arguments, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return root / 'psycachy', root / 'autoinstall.yaml'
+
+
+def extract_installer_payload(installer_iso, destination, xorriso):
+    """Extract the already validated installer tree for inclusion in the live ISO."""
+    root = Path(destination)
+    root.mkdir(parents=True, exist_ok=True)
+    psycachy = root / 'psycachy'
+    config = root / 'autoinstall.yaml'
+    run(xorriso, '-osirrox', 'on', '-indev', installer_iso,
+        '-extract', '/psycachy', psycachy,
+        '-extract', '/autoinstall.yaml', config, '-end',
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    require((psycachy / 'config/arm64-iso-kernel.json').is_file()
+            and config.is_file(), 'Installer payload extraction was incomplete')
+    return psycachy, config
 
 
 def esp_digest(image):
@@ -396,12 +797,43 @@ def build(args):
     support_pin, checked_support = resolve_support_inputs(
         args.private_machine_support, args.support_source, args.machine_root)
 
+    installer_iso = None
+    installer_info = None
+    installer_size = None
+    if args.installer_iso is None:
+        require(args.installer_iso_sha256 is None,
+                '--installer-iso-sha256 requires --installer-iso')
+    else:
+        require(args.installer_iso_sha256 is not None,
+                '--installer-iso requires --installer-iso-sha256')
+        require(args.private_machine_support,
+                '--installer-iso requires --private-machine-support')
+        require(args.installer_iso.is_file() and not args.installer_iso.is_symlink(),
+                'Installer ISO must be a regular non-symlink file')
+        installer_iso = args.installer_iso.resolve(strict=True)
+        installer_size = installer_iso.stat().st_size
+        if args.apply:
+            require(shutil.disk_usage(final.parent).free > 24 * 1024**3 + installer_size,
+                    'Need the 24 GiB builder reserve plus the installer ISO snapshot space')
+        with private_installer_snapshot(
+                installer_iso, args.installer_iso_sha256,
+                parent=final.parent if args.apply else None,
+                expected_size=installer_size) as (snapshot_iso, snapshot_digest):
+            with tempfile.TemporaryDirectory(prefix='sp12-installer-verify.') as temporary:
+                installer_root, installer_config = extract_installer_validation_files(
+                    snapshot_iso, temporary, args.xorriso, kernel_pin)
+                installer_info = validate_installer_payload(
+                    installer_root, installer_config, kernel_pin, snapshot_digest)
+
     release = kernel_pin['kernel_release']
     if not args.apply:
         print('DRY RUN: signed Ubuntu 26.10 ARM64 base:', base_pin['sha256'])
         print('Pinned SP12 kernel release:', release)
         print('Pinned kernel package pair verified:', package_report['image_package']['sha256'])
         print('Private machine support:', args.private_machine_support)
+        if installer_info:
+            print('Guarded installer ISO verified:', installer_info['iso_sha256'])
+            print('Installer kernel release:', installer_info['kernel_release'])
         print('Base ISO:', original)
         print('Output:', final)
         print('No mounts or output files created. Add --apply to build.')
@@ -417,8 +849,11 @@ def build(args):
     sidecar = Path(str(final) + '.buildinfo.json')
     for path in [partial, Path(str(final) + '.sha256'), sidecar]:
         require(not path.exists() and not path.is_symlink(), 'Refusing to overwrite ' + str(path))
-    require(shutil.disk_usage(final.parent).free > 24 * 1024**3,
-            'Need at least 24 GiB scratch space')
+    scratch_reserve = 24 * 1024**3
+    if installer_iso:
+        scratch_reserve += installer_size
+    require(shutil.disk_usage(final.parent).free > scratch_reserve,
+            'Need the 24 GiB builder reserve plus the installer ISO snapshot space')
 
     before = snapshot()
     work = Path(tempfile.mkdtemp(prefix='sp12-live-build.', dir=final.parent))
@@ -443,6 +878,13 @@ def build(args):
                 'Base ISO GRUB FDT module is missing')
         require(not (tree / 'casper' / LAYER).exists(),
                 'Base ISO already contains the SP12 live layer')
+        require(not (tree / 'casper/qemu-vmlinuz').exists()
+                and not (tree / 'casper/qemu-initrd').exists(),
+                'Base ISO already contains generic QEMU diagnostic payload names')
+        if installer_iso:
+            require(not (tree / 'autoinstall.yaml').exists()
+                    and not (tree / 'psycachy').exists(),
+                    'Base ISO already contains guarded installer payload paths')
 
         image_item = next(item for item in kernel_pin['packages']
                           if item['name'].startswith('linux-image-'))
@@ -469,6 +911,7 @@ def build(args):
         require(sha(dtb_destination) == kernel_pin['dtb_sha256'],
                 'Staged SP12 DTB differs from pin')
 
+        target_support = dict(checked_support)
         if args.private_machine_support:
             # The source archive and four machine files are a narrow, local-only allowlist.
             support = args.support_source.resolve(strict=True)
@@ -482,13 +925,26 @@ def build(args):
             extracted = work / 'private-platform'
             with tarfile.open(archive) as bundle:
                 bundle.extractall(extracted, filter='data')
+            source_support = collect_source_support(extracted, support_pin)
+            for target_relative, expected in source_support.items():
+                source_relative = (target_relative[8:] if target_relative.startswith('usr/lib/')
+                                   else target_relative)
+                if target_relative.startswith('usr/lib/'):
+                    source_relative = 'lib/' + source_relative
+                source = extracted / source_relative
+                require(sha(source) == expected,
+                        'Pinned source support file changed during extraction: ' + source_relative)
+                require(target_relative not in target_support
+                        or target_support[target_relative] == expected,
+                        'Pinned source support collides with a machine file: ' + target_relative)
+                target_support[target_relative] = expected
             for relative in support_pin['source_allowlist']:
                 source = extracted / relative
                 destination = stage / relative
                 if relative.startswith('lib/'):
                     destination = stage / 'usr' / relative
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copytree(source, destination, dirs_exist_ok=True, symlinks=True)
+                shutil.copytree(source, destination, dirs_exist_ok=True, symlinks=False)
             for relative, expected in checked_support.items():
                 source = Path(args.machine_root).resolve(strict=True) / relative
                 destination = stage / relative
@@ -497,6 +953,49 @@ def build(args):
                 destination.chmod(0o644)
                 require(sha(destination) == expected,
                         'Copied private support file differs from pin: ' + relative)
+
+        installer_payload = None
+        installer_config = None
+        if installer_iso:
+            payload_root = work / 'installer-payload'
+            require(shutil.disk_usage(final.parent).free >
+                    24 * 1024**3 + installer_size,
+                    'Need the 24 GiB builder reserve plus the installer ISO snapshot space')
+            with private_installer_snapshot(
+                    installer_iso, args.installer_iso_sha256, parent=work,
+                    expected_size=installer_size) as (
+                        snapshot_iso, snapshot_digest):
+                require(snapshot_digest == installer_info['iso_sha256'],
+                        'Installer ISO changed after preflight')
+                installer_payload, installer_config = extract_installer_payload(
+                    snapshot_iso, payload_root, args.xorriso)
+                verified_installer = validate_installer_payload(
+                    installer_payload, installer_config, kernel_pin, snapshot_digest)
+                require(verified_installer == installer_info,
+                        'Installer payload changed between preflight and extraction')
+            for relative, expected in target_support.items():
+                if relative in checked_support:
+                    source = Path(args.machine_root).resolve(strict=True) / relative
+                else:
+                    source_relative = ('lib/' + relative[8:]
+                                       if relative.startswith('usr/lib/') else relative)
+                    source = extracted / source_relative
+                destination = installer_payload / 'private-support' / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, destination)
+                destination.chmod(0o644)
+                require(sha(destination) == expected,
+                        'Installer target support payload differs from pin: ' + relative)
+            manifest_path = installer_payload / 'private-support' / 'SHA256SUMS'
+            manifest_path.write_text(private_support_manifest(target_support), encoding='utf-8')
+            manifest_path.chmod(0o644)
+            support_installer = installer_payload / 'install-private-support.sh'
+            support_installer.write_text(
+                private_support_install_script(target_support), encoding='utf-8')
+            support_installer.chmod(0o755)
+            installer_config.write_text(
+                installer_autoinstall_config(installer_config.read_text(encoding='utf-8')),
+                encoding='utf-8')
         run('depmod', '-b', stage, release)
 
         layers = []
@@ -596,8 +1095,12 @@ def build(args):
         }
         (generated / 'sp12-live-overlay-manifest.json').write_text(
             json.dumps(overlay_manifest, indent=2) + '\n')
+        if installer_iso:
+            shutil.copy2(tree / 'casper/vmlinuz', tree / 'casper/qemu-vmlinuz')
+            shutil.copy2(tree / 'casper/initrd', tree / 'casper/qemu-initrd')
         grub_text = grub_config((tree / 'boot/grub/grub.cfg').read_text(),
-                                args.private_machine_support)
+                                args.private_machine_support,
+                                installer_enabled=bool(installer_iso))
         (generated / 'grub.cfg').write_text(grub_text)
         info = {
             'schema_version': 1,
@@ -633,6 +1136,18 @@ def build(args):
                                               if support_pin else None),
             'private_support_sources': (support_pin['support_sources'] if support_pin else None),
             'private_support_file_hashes': checked_support,
+            'installer_iso_sha256': (installer_info['iso_sha256'] if installer_info else None),
+            'installer_kernel_pin_sha256': (installer_info['kernel_pin_sha256']
+                                            if installer_info else None),
+            'installer_kernel_release': (installer_info['kernel_release']
+                                         if installer_info else None),
+            'installer_package_hashes': (installer_info['package_hashes']
+                                         if installer_info else None),
+            'installer_autoinstall_sha256': (sha(installer_config)
+                                            if installer_config else None),
+            'target_support_manifest_sha256': (
+                hashlib.sha256(private_support_manifest(target_support).encode()).hexdigest()
+                if installer_iso else None),
             'script_sha256': sha(__file__),
         }
         (generated / 'sp12-live-buildinfo.json').write_text(
@@ -648,6 +1163,17 @@ def build(args):
             'sp12-live-overlay-manifest.json': generated / 'sp12-live-overlay-manifest.json',
             'sp12-live-build-script.py': Path(__file__),
         }
+        if installer_iso:
+            replacements['casper/qemu-vmlinuz'] = tree / 'casper/qemu-vmlinuz'
+            replacements['casper/qemu-initrd'] = tree / 'casper/qemu-initrd'
+            replacements['autoinstall.yaml'] = installer_config
+            for path in sorted(installer_payload.rglob('*')):
+                if path.is_symlink():
+                    require(False, 'Installer payload contains an unexpected symlink: ' +
+                            str(path.relative_to(installer_payload)))
+                if path.is_file():
+                    relative = Path('psycachy') / path.relative_to(installer_payload)
+                    replacements[str(relative)] = path
         md5_rows = []
         for line in (tree / 'md5sum.txt').read_text().splitlines():
             match = re.fullmatch(r'([0-9a-fA-F]{32})  (.+)', line)
@@ -684,10 +1210,32 @@ def build(args):
                 stdout=log, stderr=subprocess.STDOUT)
         run('md5sum', '--quiet', '-c', 'md5sum.txt', cwd=audit)
         audit_grub = (audit / 'boot/grub/grub.cfg').read_text()
-        require(audit_grub == grub_text and 'autoinstall' not in audit_grub
-                and audit_grub.count('insmod fdt') == 1
-                and audit_grub.count('devicetree ' + LIVE_DTB) == 1,
+        require(audit_grub == grub_text
+                and audit_grub.count('insmod fdt') == (2 if installer_iso else 1)
+                and audit_grub.count('devicetree ' + LIVE_DTB) ==
+                (2 if installer_iso else 1),
                 'Audited live GRUB config enables autoinstall or differs from the generated config')
+        try_menu = re.search(r'(?ms)menuentry "Try SP12 Ubuntu 26\.10[^\"]*"\s*\{([^}]*)\}',
+                             audit_grub)
+        require(try_menu is not None and 'autoinstall' not in try_menu.group(1),
+                'Default SP12 Try entry must not enable autoinstall')
+        if installer_iso:
+            install_menu = re.search(
+                r'(?ms)menuentry "Install SP12 \(guarded\)"\s*\{([^}]*)\}', audit_grub)
+            generic_menu = re.search(
+                r'(?ms)menuentry "Install SP12 \(generic QEMU diagnostic\)"\s*\{([^}]*)\}',
+                audit_grub)
+            require(install_menu is not None and install_menu.group(1).count('autoinstall') == 1
+                    and install_menu.group(1).count('devicetree ' + LIVE_DTB) == 1,
+                    'Guarded installer entry does not select the pinned kernel and DTB')
+            require(generic_menu is not None
+                    and generic_menu.group(1).count('autoinstall') == 1
+                    and 'devicetree' not in generic_menu.group(1)
+                    and '/casper/qemu-vmlinuz' in generic_menu.group(1)
+                    and '/casper/qemu-initrd' in generic_menu.group(1),
+                    'Generic QEMU installer diagnostic must use the guarded payload without Surface DTB')
+            require((audit / 'autoinstall.yaml').read_bytes() == installer_config.read_bytes(),
+                    'Guarded autoinstall selector/late-install config changed in the final ISO')
         audit_fdt_module = audit / 'boot/grub/arm64-efi/fdt.mod'
         require(audit_fdt_module.is_file() and not audit_fdt_module.is_symlink()
                 and sha(audit_fdt_module) == sha(fdt_module),
@@ -706,6 +1254,25 @@ def build(args):
                 ['unsquashfs', '-cat', str(audit / 'casper' / LAYER), relative])
             require(hashlib.sha256(data).hexdigest() == expected,
                     'Private support payload differs in live layer: ' + relative)
+            if installer_iso:
+                target_support = audit / 'psycachy/private-support' / relative
+                require(target_support.is_file() and not target_support.is_symlink()
+                        and sha(target_support) == expected,
+                        'Private target support payload differs in final ISO: ' + relative)
+        if installer_iso:
+            require(sha(audit / 'psycachy/install-private-support.sh') ==
+                    sha(installer_payload / 'install-private-support.sh'),
+                    'Private target support installer changed in final ISO')
+            expected_manifest = private_support_manifest(target_support).encode()
+            manifest = audit / 'psycachy/private-support/SHA256SUMS'
+            require(manifest.is_file() and not manifest.is_symlink()
+                    and manifest.read_bytes() == expected_manifest,
+                    'Private target support manifest changed in final ISO')
+            for relative, expected in target_support.items():
+                target_support_file = audit / 'psycachy/private-support' / relative
+                require(target_support_file.is_file() and not target_support_file.is_symlink()
+                        and sha(target_support_file) == expected,
+                        'Private target support file changed in final ISO: ' + relative)
         require(snapshot() == before, 'Physical ESP/NVRAM/mount state changed')
 
         sha(partial)
@@ -749,6 +1316,10 @@ def main():
     parser.add_argument('--support-source', type=Path, default=Path('/opt/surface-pro-12-linux'))
     parser.add_argument('--machine-root', type=Path, default=Path('/'),
                         help='Root containing the four verified local support files')
+    parser.add_argument('--installer-iso', type=Path,
+                        help='Exact pinned SP12 installer ISO to embed for the guarded Install entry')
+    parser.add_argument('--installer-iso-sha256',
+                        help='Required exact lowercase SHA-256 for --installer-iso')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     try:

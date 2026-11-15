@@ -36,11 +36,48 @@ class DiskSelectionTest(unittest.TestCase):
         disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
         for results in ([(1, "")], [(0, "")], [(0, "/dev/test"), (0, "NO")],
                         [(0, "/dev/test"), (1, "")]):
-            with self.subTest(results=results), mock.patch.object(SELECT, "dialog", side_effect=results):
+            with self.subTest(results=results), mock.patch.object(SELECT, "dialog", side_effect=results), \
+                    mock.patch.object(SELECT, "select_activation_mode", return_value={
+                        "schema_version": 1, "mode": "first-install", "disk_serial": "test-123",
+                        "operator_confirmed_no_displaced_candidate_payload": True
+                    }):
                 with self.assertRaises(ValueError):
-                    SELECT.choose_disk([], [disk])
-        with mock.patch.object(SELECT, "dialog", side_effect=[(0, "/dev/test"), (0, "ERASE")]):
-            self.assertEqual(SELECT.choose_disk([], [disk]), disk)
+                    SELECT.choose_disk([], [disk], Path("pin.json"), Path("mode.json"))
+        mode = {"schema_version": 1, "mode": "first-install", "disk_serial": "test-123",
+                "operator_confirmed_no_displaced_candidate_payload": True}
+        with mock.patch.object(SELECT, "dialog", side_effect=[(0, "/dev/test"), (0, "ERASE")]), \
+                mock.patch.object(SELECT, "select_activation_mode", return_value=mode), \
+                mock.patch.object(SELECT, "write_activation_mode") as write:
+            self.assertEqual(SELECT.choose_disk([], [disk], Path("pin.json"), Path("mode.json")), disk)
+            write.assert_called_once_with(Path("mode.json"), mode)
+
+    def test_mode_omission_fails_before_any_erase_decision_is_recorded(self):
+        disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
+        with mock.patch.object(SELECT, "dialog", side_effect=[(0, "/dev/test"), (0, "ERASE")]), \
+                mock.patch.object(SELECT, "write_activation_mode") as write:
+            with self.assertRaisesRegex(ValueError, "explicit first-install/replacement"):
+                SELECT.choose_disk([], [disk])
+            write.assert_not_called()
+
+    def test_mode_record_is_root_owned_private_and_not_overwritable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mode = Path(directory) / "run" / "activation-mode.json"
+            mode.parent.mkdir()
+            record = {"schema_version": 1, "mode": "first-install", "disk_serial": "disk-A",
+                      "operator_confirmed_no_displaced_candidate_payload": True}
+            with mock.patch.object(SELECT.os, "geteuid", return_value=0):
+                SELECT.write_activation_mode(mode, record)
+                self.assertEqual(mode.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(json.loads(mode.read_text()), record)
+                with self.assertRaises(ValueError):
+                    SELECT.write_activation_mode(mode, record)
+
+    def test_replacement_mode_rejects_missing_backup_fields_and_bad_hash(self):
+        disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
+        inputs = [(0, "replacement"), (0, "/missing/manifest.json"), (0, "bad"), (0, "backup-uuid")]
+        with mock.patch.object(SELECT, "dialog", side_effect=inputs):
+            with self.assertRaisesRegex(ValueError, "valid reviewed manifest hash"):
+                SELECT.select_activation_mode([], disk, Path("pin.json"), Path("."))
 
     def test_unknown_media_ancestry_fails_closed(self):
         with mock.patch.object(SELECT, "command", side_effect=["/dev/loop0", "loop /dev/loop0", "loop"]):

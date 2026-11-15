@@ -2,6 +2,7 @@
 """Require an explicit, confirmed disk before Subiquity configures storage."""
 from collections import Counter
 import json
+import importlib.util
 import os
 from pathlib import Path
 import pwd
@@ -15,6 +16,7 @@ import yaml
 
 SERIAL = re.compile(r"[A-Za-z0-9_.:+-]{1,128}\Z")
 INTERACTIVE = ["locale", "keyboard", "identity", "timezone"]
+MODE_FILE = Path("/run/psycachy/activation-mode.json")
 
 
 def command(*args):
@@ -110,7 +112,75 @@ def configure(config, serial):
                 os.unlink(output.name)
 
 
-def choose_disk(base, disks):
+def select_activation_mode(base, disk, pin_path, backup_root):
+    result, mode = dialog(base, ["--list", "--radiolist", "--modal", "--width=850", "--height=320",
+        "--title=Choose installation mode",
+        "--text=First-install means no prior PsyCachy candidate payload is displaced. Replacement requires a verified independent backup.",
+        "--column=Select", "--column=Mode", "--column=Requirement", "--print-column=2",
+        "TRUE", "first-install", "No prior PsyCachy candidate payload is displaced",
+        "FALSE", "replacement", "Verified archive, manifest, hash, and backup volume"])
+    if result != 0 or mode not in {"first-install", "replacement"}:
+        raise ValueError("an explicit installation mode is required")
+    if mode == "first-install":
+        result, answer = dialog(base, ["--entry", "--modal", "--width=800", "--title=Confirm first install",
+            "Use only when no prior PsyCachy candidate payload is displaced. This does not preserve other disk contents. Type FIRST-INSTALL."])
+        if result != 0 or answer != "FIRST-INSTALL":
+            raise ValueError("first-install mode was not explicitly confirmed")
+        return {"schema_version": 1, "mode": mode, "disk_serial": disk["serial"],
+                "operator_confirmed_no_displaced_candidate_payload": True}
+
+    result, manifest = dialog(base, ["--file-selection", "--modal", "--title=Select verified displaced-payload manifest"])
+    if result != 0 or not manifest:
+        raise ValueError("replacement requires the actual displaced-payload manifest")
+    result, digest = dialog(base, ["--entry", "--modal", "--title=Reviewed manifest SHA-256",
+                                   "Enter the independently reviewed manifest SHA-256."])
+    if result != 0 or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("replacement requires a valid reviewed manifest hash")
+    result, volume = dialog(base, ["--entry", "--modal", "--title=Independent backup volume UUID",
+                                   "Enter the reviewed UUID of the independent backup volume."])
+    if result != 0 or not volume.strip():
+        raise ValueError("replacement requires the independent backup-volume UUID")
+    spec = importlib.util.spec_from_file_location("phase2_kernel_trial", backup_root / "phase2-kernel-trial.py")
+    if spec is None or spec.loader is None:
+        raise ValueError("the pinned backup verifier is unavailable")
+    verifier = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(verifier)
+    pin = verifier.read_pin(pin_path)
+    try:
+        verified = verifier.verify_displaced_backup(Path(manifest), pin,
+            expected_manifest_sha256=digest, approved_volume_id=volume.strip(),
+            target_disk_serial=disk["serial"])
+    except verifier.TrialError as error:
+        raise ValueError(f"replacement backup verification failed: {error}") from error
+    return {"schema_version": 1, "mode": mode, "disk_serial": disk["serial"],
+            "backup": {"manifest_path": str(Path(manifest).resolve()),
+                       "manifest_sha256": digest, "volume_id": volume.strip(),
+                       "verified_archive_sha256": verified["archive_sha256"],
+                       "backup_disk_serial": verified["backup_disk_serial"]}}
+
+
+def write_activation_mode(path, record):
+    if (os.geteuid() != 0 or path.is_symlink() or path.exists()
+            or path.parent.is_symlink()):
+        raise ValueError("activation mode path is unsafe or already exists")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+    if path.parent.is_symlink():
+        raise ValueError("activation mode directory is unsafe")
+    fd, temporary = tempfile.mkstemp(prefix=".activation-mode.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            json.dump(record, output, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def choose_disk(base, disks, pin_path=None, mode_path=MODE_FILE):
     items = []
     for disk in disks:
         items.extend(["FALSE", disk["path"], disk["model"], disk["serial"],
@@ -122,10 +192,16 @@ def choose_disk(base, disks):
     selected = next((disk for disk in disks if disk["path"] == choice), None)
     if result != 0 or selected is None:
         raise ValueError("disk selection was cancelled or empty")
+    mode_record = None
+    if pin_path is not None:
+        mode_record = select_activation_mode(base, selected, pin_path, pin_path.parent)
     result, answer = dialog(base, ["--entry", "--modal", "--width=650", "--title=Confirm disk erasure",
         f"--text=All data on {selected['path']} ({selected['serial']}) will be erased. Type ERASE to continue."])
     if result != 0 or answer != "ERASE":
         raise ValueError("disk erasure was not confirmed")
+    if mode_record is None:
+        raise ValueError("an explicit first-install/replacement decision is required before erasure")
+    write_activation_mode(mode_path, mode_record)
     return selected
 
 
@@ -139,7 +215,7 @@ def main():
     base = desktop_command()
     # The installer opens its loading window during early commands.
     time.sleep(5)
-    selected = choose_disk(base, disks)
+    selected = choose_disk(base, disks, Path("/cdrom/psycachy/helpers/amd64-kernel-pin.json"))
     if not any(disk["path"] == selected["path"] and disk["serial"] == selected["serial"] for disk in discover()):
         raise ValueError("the selected disk changed or became unavailable")
     configure(Path("/autoinstall.yaml"), selected["serial"])

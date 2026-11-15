@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interactive first-login activation. Ubuntu remains the default until checks pass.
+# Interactive front end for the retained candidate-trial state machine.
 set -Eeuo pipefail
 IFS=$'\n\t'
 export LC_ALL=C
@@ -8,67 +8,96 @@ die() { echo "PsyCachy activation: $*" >&2; exit 1; }
 [[ -t 0 && -t 1 ]] || die 'an interactive terminal is required'
 [[ -f /var/lib/psycachy/installer-packages-ready ]] || die 'installer package setup is incomplete'
 helper=/usr/local/lib/psycachy/psycachy-secureboot.sh
+trial=/usr/local/sbin/phase2-kernel-trial
 keydir=/var/lib/psycachy/secureboot
-[[ -f /var/lib/psycachy/pending-kernel ]] || die 'the pending kernel is missing'
-kernel=$(cat /var/lib/psycachy/pending-kernel)
-[[ $kernel =~ ^[A-Za-z0-9._+-]+-psycachy$ ]] || die 'the pending kernel release is invalid'
-[[ -f $helper && -f $keydir/kernel.pem && -f $keydir/module.der ]] || die 'signing material is missing'
+[[ -f $helper && -x $trial && -f $keydir/kernel.pem && -f $keydir/module.der ]] || die 'activation helpers or local signing certificates are missing'
+state_file=/var/lib/psycachy/kernel-trial.json
+
 state=$(mokutil --sb-state) || die 'could not determine Secure Boot state'
 case $state in
   'SecureBoot enabled') secure=true ;;
   'SecureBoot disabled'|$'SecureBoot disabled\nPlatform is in Setup Mode') secure=false ;;
   *) die "unexpected Secure Boot state: $state" ;;
 esac
-
 if $secure; then
   if ! bash "$helper" check; then
     pending=$(mokutil --list-new) || die 'could not inspect pending MOK enrollments'
     [[ -z $pending ]] || die 'a MOK enrollment is already pending; complete it at reboot before retrying'
-    echo 'Enroll the two PsyCachy certificates. MOK Manager will ask for the password at reboot.'
+    echo 'Enroll the two local PsyCachy certificates. MOK Manager will ask for the password at reboot.'
     read -r -p 'Type ENROLL to request enrollment: ' answer
     [[ $answer == ENROLL ]] || die 'enrollment was not requested'
     bash "$helper" enroll
-    echo 'Restart and press a key when the MOK management prompt appears; it times out quickly.'
-    echo 'Complete enrollment in MOK Manager, then run this launcher again.'
+    echo 'Restart and complete enrollment in MOK Manager, then run activation again.'
     exit 0
   fi
   trust=/sys/firmware/efi/efivars/MokListTrustedRT-605dab50-e046-4300-abb6-3dd810dd8b23
   if [[ ! -e $trust ]]; then
-    echo 'PsyCachy requires the kernel to trust ALL enrolled MOKs, not only its own certificates.'
-    echo 'Review the enrolled keys before accepting:'
+    echo 'PsyCachy requires the kernel to trust all enrolled MOKs. Review the list first:'
     mokutil --list-enrolled --short
     read -r -p 'Type TRUST to request trust for all enrolled MOKs: ' answer
     [[ $answer == TRUST ]] || die 'MOK trust was not requested'
     bash "$helper" trust-mok
-    echo 'Restart and press a key when the MOK management prompt appears; it times out quickly.'
-    echo 'Complete the trust request in MOK Manager, then run this launcher again.'
+    echo 'Restart and complete the trust request in MOK Manager, then run activation again.'
     exit 0
   fi
 fi
 
-sbverify --cert "$keydir/kernel.pem" "/boot/vmlinuz-$kernel" >/dev/null || die 'kernel signature verification failed'
-dkms status -m nvidia -v 615.71.09 -k "$kernel" | grep -q ': installed' || die 'NVIDIA DKMS is not installed'
-for module in nvidia nvidia-modeset nvidia-drm nvidia-uvm nvidia-peermem; do
-  [[ $(modinfo -k "$kernel" -F signer "$module") == 'PsyCachy DKMS Module Signing' ]] || \
-    die "NVIDIA module $module signer is incorrect"
-done
-uuid=$(grub-probe --target=fs_uuid /)
-[[ $uuid =~ ^[A-Za-z0-9-]+$ ]] || die 'could not determine the root filesystem UUID'
-submenu="gnulinux-advanced-$uuid"
-entry="gnulinux-$kernel-advanced-$uuid"
-grep -Fq "$submenu" /boot/grub/grub.cfg || die 'PsyCachy GRUB submenu is missing'
-grep -Fq "$entry" /boot/grub/grub.cfg || die 'PsyCachy GRUB entry is missing'
-
-if [[ $(uname -r) != "$kernel" ]]; then
-  grub-reboot "$submenu>$entry"
-  grub-editenv list | grep -Fxq "next_entry=$submenu>$entry" || die 'could not schedule a one-time PsyCachy boot'
-  echo 'Restart to test PsyCachy once. Ubuntu remains the default if the test fails.'
+if [[ ! -e $state_file ]]; then
+  echo 'This begins the one-boot trial. Ubuntu remains the saved default until explicit promotion.'
+  read -r -p 'Type PREPARE to schedule the pinned candidate once: ' answer
+  [[ $answer == PREPARE ]] || die 'candidate trial was not prepared'
+  machine_id=$(cat /etc/machine-id)
+  fallback=$(cat /var/lib/psycachy/fallback-release)
+  mode=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' /var/lib/psycachy/activation-mode.json)
+  args=(prepare --pin /var/lib/psycachy/amd64-kernel-pin.json \
+    --packages /var/lib/psycachy/candidate-packages \
+    --expected-machine-id "$machine_id" --fallback-release "$fallback")
+  case $mode in
+    first-install) args+=(--first-install) ;;
+    replacement)
+      mode_json=/var/lib/psycachy/activation-mode.json
+      args+=(--backup-manifest "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backup"]["manifest_path"])' "$mode_json")" \
+        --backup-manifest-sha256 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backup"]["manifest_sha256"])' "$mode_json")" \
+        --approved-backup-volume-id "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backup"]["volume_id"])' "$mode_json")") ;;
+    *) die 'installer activation mode is missing or unknown' ;;
+  esac
+  "$trial" "${args[@]}"
+  echo 'Restart to run the candidate once. Ubuntu remains the saved fallback.'
   exit 0
 fi
 
-modprobe nvidia || die 'NVIDIA module failed to load'
-nvidia-smi || die 'NVIDIA did not detect a working GPU'
-grub-set-default "$submenu>$entry"
-grub-editenv list | grep -Fxq "saved_entry=$submenu>$entry" || die 'could not save the PsyCachy default'
-touch /var/lib/psycachy/installer-activated
-echo 'PsyCachy passed activation checks and is now the default kernel.'
+trial_state=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["state"])' "$state_file")
+case $trial_state in
+  pending)
+    if [[ $(uname -r) != "$(cat /var/lib/psycachy/pending-kernel)" ]]; then
+      echo 'The candidate has not booted yet. Restart to run its one-time trial.'
+      exit 0
+    fi
+    echo 'Run your physical health checks before acknowledging this candidate.'
+    read -r -p 'Type ACKNOWLEDGE after the candidate checks pass: ' answer
+    [[ $answer == ACKNOWLEDGE ]] || die 'candidate was not acknowledged'
+    "$trial" acknowledge
+    trial_state=acknowledged
+    ;;
+  acknowledged)
+    echo 'The candidate is acknowledged; the Ubuntu fallback remains the saved default.'
+    read -r -p 'Type ROLLBACK to restore Ubuntu, or TEMPLATE to prepare promotion review: ' action
+    if [[ $action == ROLLBACK ]]; then
+      "$trial" rollback
+      exit 0
+    fi
+    [[ $action == TEMPLATE ]] || die 'choose rollback or promotion review'
+    "$trial" attestation-template
+    read -r -p 'Reviewed health attestation path (blank to stop): ' attestation
+    [[ -n $attestation ]] || attestation=/var/lib/psycachy/attestations/health-attestation.json
+    "$trial" promote --attestation "$attestation"
+    echo 'Candidate promoted. The fallback remains available; rollback is still supported.'
+    ;;
+  promoted)
+    echo 'Candidate is promoted; Ubuntu remains available as the verified fallback.'
+    read -r -p 'Type ROLLBACK to restore Ubuntu as the saved default and reboot: ' answer
+    [[ $answer == ROLLBACK ]] || die 'rollback was not requested'
+    "$trial" rollback
+    ;;
+  *) die "trial state is $trial_state; inspect status and resolve it before activation" ;;
+esac

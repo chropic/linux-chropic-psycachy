@@ -2,6 +2,7 @@
 import importlib.util
 import gzip
 import json
+import os
 import pathlib
 import hashlib
 import io
@@ -114,6 +115,115 @@ submenu 'Outer' $menuentry_id_option 'gnulinux-advanced-outer' {
 
 
 class TrialStateHelpersTests(unittest.TestCase):
+    def test_preerase_activation_mode_is_required_and_bound_to_target_serial(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mode = pathlib.Path(directory) / "activation-mode.json"
+            with self.assertRaisesRegex(trial.TrialError, "missing or unsafe"):
+                trial.verified_activation_mode(mode, "/dev/test1")
+            mode.write_text(json.dumps({"schema_version": 1, "mode": "first-install",
+                                        "disk_serial": "disk-A",
+                                        "operator_confirmed_no_displaced_candidate_payload": True}),
+                            encoding="utf-8")
+            mode.chmod(0o600)
+            original_stat = pathlib.Path.stat
+            def root_owned(path, *args, **kwargs):
+                result = original_stat(path, *args, **kwargs)
+                return types.SimpleNamespace(st_uid=0, st_mode=result.st_mode) if path == mode else result
+            commands = [
+                subprocess.CompletedProcess([], 0, "disk /dev/test\n", ""),
+                subprocess.CompletedProcess([], 0, "ID_SERIAL=disk-A\n", ""),
+            ]
+            with mock.patch.object(pathlib.Path, "stat", root_owned), \
+                    mock.patch.object(trial, "command", side_effect=commands):
+                self.assertEqual(trial.verified_activation_mode(mode, "/dev/test1")["mode"],
+                                 "first-install")
+            commands = [
+                subprocess.CompletedProcess([], 0, "disk /dev/test\n", ""),
+                subprocess.CompletedProcess([], 0, "ID_SERIAL=disk-B\n", ""),
+            ]
+            with mock.patch.object(pathlib.Path, "stat", root_owned), \
+                    mock.patch.object(trial, "command", side_effect=commands):
+                with self.assertRaisesRegex(trial.TrialError, "does not match"):
+                    trial.verified_activation_mode(mode, "/dev/test1")
+
+    def test_replacement_activation_mode_without_backup_fails_and_tampering_is_detected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mode = pathlib.Path(directory) / "activation-mode.json"
+            mode.write_text(json.dumps({"schema_version": 1, "mode": "replacement",
+                                        "disk_serial": "disk-A"}), encoding="utf-8")
+            mode.chmod(0o600)
+            original_stat = pathlib.Path.stat
+            def root_owned(path, *args, **kwargs):
+                result = original_stat(path, *args, **kwargs)
+                return types.SimpleNamespace(st_uid=0, st_mode=result.st_mode) if path == mode else result
+            commands = [
+                subprocess.CompletedProcess([], 0, "disk /dev/test\n", ""),
+                subprocess.CompletedProcess([], 0, "ID_SERIAL=disk-A\n", ""),
+            ]
+            with mock.patch.object(pathlib.Path, "stat", root_owned), \
+                    mock.patch.object(trial, "command", side_effect=commands):
+                with self.assertRaisesRegex(trial.TrialError, "pre-verified"):
+                    trial.verified_activation_mode(mode, "/dev/test1")
+            mode.chmod(0o644)
+            with self.assertRaisesRegex(trial.TrialError, "missing or unsafe"):
+                trial.verified_activation_mode(mode, "/dev/test1")
+
+    def test_verified_nvidia_package_identity_uses_installed_package_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            identity = pathlib.Path(directory) / "nvidia.json"
+            value = {"schema_version": 1, "architecture": "amd64", "packages": [
+                {"name": "nvidia-driver-900-open", "version": "900.4.1-2",
+                 "filename": "nvidia-driver-900-open.deb", "sha256": "a" * 64},
+                {"name": "nvidia-dkms-900-open", "version": "900.4.1-2",
+                 "filename": "nvidia-dkms-900-open.deb", "sha256": "b" * 64}]}
+            identity.write_text(json.dumps(value), encoding="utf-8")
+            identity.chmod(0o600)
+            original_stat = pathlib.Path.stat
+            def root_owned(path, *args, **kwargs):
+                result = original_stat(path, *args, **kwargs)
+                return types.SimpleNamespace(st_uid=0, st_mode=result.st_mode) if path == identity else result
+            def installed(argv, *, allow_failure=False):
+                package = argv[-1]
+                return subprocess.CompletedProcess(argv, 0, "ii 900.4.1-2 amd64\n", "")
+            with mock.patch.object(pathlib.Path, "stat", root_owned), \
+                    mock.patch.object(trial, "command", side_effect=installed):
+                self.assertEqual(trial.installed_nvidia_package_identity(identity), value)
+            with mock.patch.object(pathlib.Path, "stat", root_owned), \
+                    mock.patch.object(trial, "command", return_value=subprocess.CompletedProcess([], 0, "ii 1.0 amd64\n", "")):
+                with self.assertRaisesRegex(trial.TrialError, "does not match"):
+                    trial.installed_nvidia_package_identity(identity)
+
+    def test_health_attestation_is_bound_to_local_candidate_and_all_physical_gates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            attest_dir = root / "attestations"
+            attest_dir.mkdir()
+            attestation_path = attest_dir / "health.json"
+            state = {"machine_id": "a" * 32, "pin_sha256": "b" * 64,
+                     "candidate_payload_hashes": {"vmlinuz": "c" * 64},
+                     "local_activation_identity": {"kernel_signing_certificate_sha256": "d" * 64,
+                                                    "module_signing_certificate_sha256": "e" * 64}}
+            attestation = {"schema_version": 1, "reviewed": True, "reviewer": "operator",
+                "reviewed_at_utc": "2026-11-14T00:00:00Z", "machine_id": "a" * 32,
+                "candidate_pin_sha256": "b" * 64, "candidate_payload_hashes": {"vmlinuz": "c" * 64},
+                "kernel_signing_certificate_sha256": "d" * 64,
+                "module_signing_certificate_sha256": "e" * 64,
+                "physical_gates": {name: True for name in trial.ATTESTATION_GATES}}
+            attestation_path.write_text(json.dumps(attestation), encoding="utf-8")
+            attestation_path.chmod(0o600)
+            original_stat = pathlib.Path.stat
+            def root_owned(path, *args, **kwargs):
+                result = original_stat(path, *args, **kwargs)
+                return types.SimpleNamespace(st_uid=0, st_mode=result.st_mode) if path == attestation_path else result
+            with mock.patch.object(trial, "ATTESTATION_DIR", attest_dir), \
+                    mock.patch.object(trial, "ensure_attestation_directory"), \
+                    mock.patch.object(pathlib.Path, "stat", root_owned):
+                self.assertEqual(trial.verify_health_attestation(attestation_path, state)["reviewer"], "operator")
+                attestation["candidate_pin_sha256"] = "0" * 64
+                attestation_path.write_text(json.dumps(attestation), encoding="utf-8")
+                with self.assertRaisesRegex(trial.TrialError, "does not match current candidate_pin_sha256"):
+                    trial.verify_health_attestation(attestation_path, state)
+
     def test_parse_grub_environment(self):
         state = trial.parse_grubenv(
             "saved_entry=gnulinux-generic\nnext_entry=gnulinux-candidate\n"
@@ -419,7 +529,8 @@ class TrialStateHelpersTests(unittest.TestCase):
                     module_certificate=root / "module.der",
                     loaded_modules=["nvidia"], runtime=True,
                 )
-            self.assertEqual(len(commands), 3)
+            self.assertEqual(len(commands), 2)
+            self.assertNotIn("signer", [argv[4] for argv in commands if len(argv) > 4])
 
             enforce.write_text("N\n", encoding="ascii")
             with mock.patch.object(trial, "BOOT_DIR", boot), \
@@ -629,6 +740,63 @@ class TrialStateHelpersTests(unittest.TestCase):
             self.assertEqual(result["backup_volume_id"], "approved-backup-uuid")
             self.assertEqual(result["payloads"]["vmlinuz"], payloads["vmlinuz"])
 
+    def test_displaced_backup_on_selected_erase_disk_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+            pin, manifest_path, expected_hash, _ = self._make_backup(directory)
+
+            def commands(argv, *, allow_failure=False):
+                if argv[0] == "findmnt" and argv[3] == "UUID":
+                    volume = "approved-backup-uuid" if argv[-1] != "/" else "root-volume-uuid"
+                    return subprocess.CompletedProcess(argv, 0, volume + "\n", "")
+                if argv[0] == "findmnt" and argv[3] == "SOURCE":
+                    return subprocess.CompletedProcess(argv, 0, "/dev/sdb1\n", "")
+                if argv[0] == "lsblk":
+                    return subprocess.CompletedProcess(argv, 0, "part /dev/sdb1\ndisk /dev/sdb\n", "")
+                if argv[0] == "udevadm":
+                    return subprocess.CompletedProcess(argv, 0, "ID_SERIAL=erase-target-1\n", "")
+                if argv[0] == "dpkg-deb":
+                    return self._backup_commands(argv, allow_failure=allow_failure)
+                self.fail(f"Unexpected backup verification command: {argv}")
+
+            with mock.patch.object(trial, "command", side_effect=commands):
+                with self.assertRaisesRegex(trial.TrialError, "different serial-identified disk"):
+                    trial.verify_displaced_backup(manifest_path, pin,
+                        expected_manifest_sha256=expected_hash,
+                        approved_volume_id="approved-backup-uuid",
+                        target_disk_serial="erase-target-1")
+
+    def test_displaced_backup_manifest_must_remain_on_the_reviewed_volume(self):
+        with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+            pin, manifest_path, expected_hash, _ = self._make_backup(directory)
+
+            def commands(argv, *, allow_failure=False):
+                if argv[0] == "findmnt":
+                    if argv[3] == "UUID" and argv[-1] == str(manifest_path):
+                        volume = "root-volume-uuid"
+                    else:
+                        volume = "approved-backup-uuid" if argv[-1] != "/" else "root-volume-uuid"
+                    return subprocess.CompletedProcess(argv, 0, volume + "\n", "")
+                if argv[0] == "dpkg-deb":
+                    return self._backup_commands(argv, allow_failure=allow_failure)
+                self.fail(f"Unexpected backup verification command: {argv}")
+
+            with mock.patch.object(trial, "command", side_effect=commands):
+                with self.assertRaisesRegex(trial.TrialError, "manifest is not on the reviewed backup volume"):
+                    trial.verify_displaced_backup(manifest_path, pin,
+                        expected_manifest_sha256=expected_hash,
+                        approved_volume_id="approved-backup-uuid")
+
+    def test_displaced_backup_path_missing_after_reboot_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+            pin, manifest_path, expected_hash, _ = self._make_backup(directory)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            pathlib.Path(manifest["archive_path"]).unlink()
+            with mock.patch.object(trial, "command", side_effect=self._backup_commands):
+                with self.assertRaisesRegex(trial.TrialError, "archive is missing or unsafe"):
+                    trial.verify_displaced_backup(manifest_path, pin,
+                        expected_manifest_sha256=expected_hash,
+                        approved_volume_id="approved-backup-uuid")
+
     def test_displaced_backup_rejects_archive_bytes_not_bound_to_payload_hash(self):
         with tempfile.TemporaryDirectory(dir="/tmp") as directory:
             pin, manifest_path, expected_hash, _ = self._make_backup(directory, corrupt_payload=True)
@@ -757,6 +925,92 @@ class TrialStateHelpersTests(unittest.TestCase):
                     final = trial.arm_timeout_locked(state_file)
             self.assertEqual(final["state"], "rolled_back")
             self.assertEqual(final["observed_kernel_release"], "7.3.0-10-generic")
+
+    def test_promotion_requires_acknowledged_running_candidate_and_attestation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            state_file = root / "state.json"
+            grubenv = root / "grubenv"
+            grubenv.write_bytes(b"env")
+            state = {"schema_version": 1, "state": "acknowledged",
+                "kernel_release": "7.3.1-psycachy", "fallback_release": "7.3.0-10-generic",
+                "fallback_entry": "fallback", "candidate_entry": "candidate",
+                "secure_boot_mode": "enabled", "required_units": [], "runtime": {},
+                "pin_sha256": "a" * 64, "candidate_payload_hashes": {"vmlinuz": "b" * 64},
+                "machine_id": "c" * 32,
+                "local_activation_identity": {"kernel_signing_certificate_sha256": "d" * 64,
+                                               "module_signing_certificate_sha256": "e" * 64}}
+            trial.write_state(state_file, state)
+            current = {"saved_entry": "fallback", "next_entry": ""}
+            calls = []
+
+            def fake_command(argv, *, allow_failure=False):
+                calls.append(argv)
+                if argv[0] == "grub-editenv" and argv[2] == "set":
+                    current["saved_entry"] = argv[3].split("=", 1)[1]
+                return subprocess.CompletedProcess(argv, 0, "", "")
+
+            with mock.patch.object(trial, "GRUBENV_PATH", grubenv), \
+                    mock.patch.object(trial, "grub_state", side_effect=lambda _: dict(current)), \
+                    mock.patch.object(trial, "command", side_effect=fake_command), \
+                    mock.patch.object(trial, "verify_candidate_integrity") as integrity, \
+                    mock.patch.object(trial, "verify_fallback_unchanged") as fallback, \
+                    mock.patch.object(trial, "require_clean_packages"), \
+                    mock.patch.object(trial, "verify_health_attestation", return_value={"sha256": "f" * 64}), \
+                    mock.patch.object(trial.os, "uname", return_value=types.SimpleNamespace(release="7.3.1-psycachy")):
+                promoted = trial.promote_locked(state_file, root / "attestation.json")
+            self.assertEqual(promoted["state"], "promoted")
+            self.assertEqual(current["saved_entry"], "candidate")
+            integrity.assert_called_once_with(promoted, runtime=True)
+            fallback.assert_called_once_with(promoted)
+            self.assertEqual(calls[0][3], "saved_entry=candidate")
+
+    def test_rollback_from_acknowledged_or_promoted_restores_fallback_default(self):
+        for initial_state, default in (("acknowledged", "fallback"), ("promoted", "candidate")):
+            with self.subTest(initial_state=initial_state), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                state_file = root / "state.json"
+                grubenv = root / "grubenv"
+                grubenv.write_bytes(b"env")
+                state = {"schema_version": 1, "state": initial_state,
+                    "kernel_release": "7.3.1-psycachy", "fallback_release": "7.3.0-10-generic",
+                    "fallback_entry": "fallback", "candidate_entry": "candidate",
+                    "architecture": "amd64", "runtime": {}, "required_units": []}
+                trial.write_state(state_file, state)
+                grub = {"saved_entry": default, "next_entry": ""}
+                commands = []
+
+                def fake_command(argv, *, allow_failure=False):
+                    commands.append(argv)
+                    if argv[0] == "grub-editenv" and argv[2] == "set":
+                        grub["saved_entry"] = argv[3].split("=", 1)[1]
+                    if argv[:2] == ["systemctl", "reboot"]:
+                        return subprocess.CompletedProcess(argv, 0, "", "")
+                    return subprocess.CompletedProcess(argv, 0, "", "")
+
+                with mock.patch.object(trial, "GRUBENV_PATH", grubenv), \
+                        mock.patch.object(trial, "grub_state", side_effect=lambda _: dict(grub)), \
+                        mock.patch.object(trial, "command", side_effect=fake_command), \
+                        mock.patch.object(trial, "verify_fallback_unchanged"), \
+                        mock.patch.object(trial.os, "uname", return_value=types.SimpleNamespace(release="7.3.1-psycachy")):
+                    result = trial.rollback_locked(state_file)
+                self.assertEqual(result["state"], "rollback_requested")
+                self.assertEqual(grub["saved_entry"], "fallback")
+                self.assertIn(["systemctl", "reboot"], commands)
+
+    def test_prepare_parser_forbids_first_install_and_replacement_manifest_mix(self):
+        with self.assertRaises(SystemExit):
+            trial.build_parser().parse_args(["prepare", "--pin", "pin.json", "--packages", "pkgs",
+                                             "--first-install", "--backup-manifest", "backup.json"])
+
+
+class BuildManifestTests(unittest.TestCase):
+    def test_amd64_build_manifest_hashes_trial_helper(self):
+        script = (ROOT / "iso/build.sh").read_text(encoding="utf-8")
+        rows = [line for line in script.splitlines()
+                if "sha256sum" in line and "$root/tools/psycachy-secureboot.sh" in line]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("$root/tools/phase2-kernel-trial.py", rows[0])
 
 
 class PinValidationTests(unittest.TestCase):

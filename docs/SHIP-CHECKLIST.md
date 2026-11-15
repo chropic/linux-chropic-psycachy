@@ -6,7 +6,38 @@ changes. Put code changes that are not yet implemented in
 [IMPLEMENTATION-QUEUE.md](IMPLEMENTATION-QUEUE.md). Detailed logs, inventories,
 research, prior plans, and procedures are retained under `docs/archive/`.
 
-## Current state
+Current private-pilot identities, gate states, and physical dependencies are
+tracked in the [private-pilot qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
+This checklist remains open for the separate full public-release decision.
+
+## Evidence snapshots
+
+The records below preserve dated results and exact historical artifact
+identities. Earlier present-tense wording refers to its recorded snapshot and
+may be superseded; use the private-pilot ledger for current pilot status.
+
+- **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
+  replay stopped at Iris patch 46 (50/51 entries apply), so the existing
+  7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is
+  already Zen 3 (`znver3`) targeted. The Apple HDD is now present and
+  identified, but no physical media write occurred; the attached Ventoy USB
+  contains older images and has insufficient free space for final51 media.
+  Local and SP12 remote storage still block the next heavy VM/build steps.
+  See the [execution report](archive/validation/bounded-refresh-and-readiness-20261114.md)
+  and current [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
+
+- **2026-11-15 approved USB refresh:** the user authorized replacing both
+  existing ISO files on the separate Ventoy USB. The AMD64 lifecycle ISO and
+  SP12 final51 live image were copied and their complete destination SHA-256
+  hashes matched the source identities. The user later reported booting the
+  AMD64 ISO to the B550I installer with a generic live kernel; this does not
+  establish the installed candidate's `znver3` kernel or SP12 bootability.
+  Ventoy was preserved and the original UEFI BootOrder was restored.
+  The exact Apple HDD external-install checkpoint was presented and held at
+  the user's request; the disk remains unchanged. Independent rescue
+  qualification and physical installation remain open.
+  See the [USB write record](archive/validation/artifacts/usb-ventoy-inventory-20261114/write-record.md)
+  and current [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
 - **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO is
   `output/amd64-iso-reconstructed-20261113/psycachy-ubuntu-26.10-desktop-amd64.iso`,
@@ -101,8 +132,9 @@ research, prior plans, and procedures are retained under `docs/archive/`.
   chooser but virtual input did not register; it stopped with zero target,
   sentinel, and ISO writes, and both QCOWs plus the sentinel passed post-stop
   checks. Attempt 7 selected only disposable serial
-  `psycachy-arm64-linux` and accepted its exact `ERASE` guard. It is now at
-  “Setting up the system”. At 00:01 UTC on 2026-11-14, QMP reports
+  `psycachy-arm64-linux` and accepted its exact `ERASE` guard. At the
+  00:01 UTC snapshot on 2026-11-14, it was at “Setting up the system”. QMP
+  then reported
   12,066,911,744 target write bytes across 48,844 operations, no failed writes,
   and zero writes to the sentinel and installer ISO. Physical
   qualification remains open. See the
@@ -171,9 +203,12 @@ research, prior plans, and procedures are retained under `docs/archive/`.
   emulation. Attempt 5 stopped in early live setup without any block writes;
   both QCOWs checked clean and the sentinel still matches. Attempt 6 stopped
   at the selector without any writes; its post-stop QCOW checks and sentinel
-  hash passed. The user is
-  onsite and reports SP12, Apple HDD, and a native ARM64 host available. The
-  Apple HDD currently holds the private live ISO and remains untouched. The
+  hash passed. The 2026-11-12 session record says the user was onsite and
+  reported SP12, Apple HDD, and a native ARM64 host available. The earlier
+  Apple HDD image is the private USB ISO with SHA-256
+  `e29dd59f76fcf73ce1e7ed8dfe60d88b83f7d2dd3c8a4cfcbab1b9b413817e36`; the
+  final51 private live ISO was not written to that disk. At the time, local
+  inventory did not contain the expected Apple HDD. The
   B550I still has no separate blank installation target. Tailscale SSH to
   `cs-sp12` is available; its native ARM64 rootless live-builder dry-run
   passed with the exact final51 package pair, signed base, pinned support
@@ -204,10 +239,22 @@ research, prior plans, and procedures are retained under `docs/archive/`.
   No OS login appeared after about five minutes. The ACPI powerdown request
   received no guest response, so QEMU was stopped through QMP. The installed
   base, overlay, and sentinel QCOW checks passed, and the sentinel hash remained
-  unchanged. This is not a detached-media boot pass; generic QEMU `virt` also
-  does not emulate SP12 hardware. The exact r2 runtime kernel and DT build ID,
-  native live-media boot, physical B550I/SP12 qualification, and attribution/
-  redistribution review remain open. A native ARM64 host QEMU TCG attempt
+  unchanged. This original no-media run did not qualify detached-media boot;
+  QEMU `virt` does not emulate SP12 hardware. A bounded follow-up diagnostic on
+  2026-11-14 confirmed UEFI, shim, GRUB, and manual loading of the installed
+  7.3.1 kernel/initrd/DTB. With the Surface-specific DTB under QEMU `virt`, the
+  kernel failed at SMC PSCI when virtualization was off, then at the missing
+  GIC/timer addresses when virtualization was on. A run that omitted the
+  Surface DTB booted the same kernel/initrd and installed Ubuntu root to a
+  serial login prompt under generic EFI/ACPI. This demonstrates a reproducible
+  SP12-DTB/QEMU-virt incompatibility and a generic EFI/ACPI control that reaches
+  the installed-root prompt. It is consistent with the earlier silence but
+  does not prove the original attempt executed the candidate default entry or
+  failed at the same point, because its detached vars file is missing. It does
+  not qualify an SP12 boot. The exact
+  hardware boot, runtime DTB identity, native live-media boot, physical
+  B550I/SP12 qualification, and attribution/redistribution review remain open.
+  See the [detached-boot diagnosis](archive/validation/artifacts/sp12-attempt7-detached-kernel-diagnostic-20261114/report.md). A native ARM64 host QEMU TCG attempt
   reached the private GRUB “Try SP12 Ubuntu 26.10” entry but did not show a live
   desktop or login; ISO reads stalled at about 200 MB and there were no writes.
   That VM had no network or hard disks and was stopped after six minutes. It
@@ -291,18 +338,27 @@ research, prior plans, and procedures are retained under `docs/archive/`.
   exact restored ESP bytes in a GPT disk, read-back-verified the full
   512 MiB partition, and set fresh AAVMF BootNext to that partition's GUID.
   AAVMF then loaded its `BOOTAA64.EFI` and reached GRUB. The fixture's EFI stub
-  requests `/grub.cfg` from the `/boot` filesystem, while GRUB enumeration
-  showed the main file at `/grub/grub.cfg`; this path mismatch is consistent
-  with the prompt. Manually pointing GRUB to that file left the prompt without
-  a reported error, but no menu or kernel/userspace boot was captured. The
-  restored target boot gate remains open; this mismatch is specific to the
-  disposable fixture unless seen on hardware. See the
-  [BootNext/ESP audit](output/.unattended-luna-20261111210910Z/qemu-hosting/recovery-rescue-correct-root-20261112/rescue-boot-esp-mismatch-20261112.md)
+  originally requested `/grub.cfg` from the `/boot` filesystem, while GRUB
+  enumeration showed the main file at `/grub/grub.cfg`. A 2026-11-14
+  display-enabled COW run captured GRUB 2.14, read that main config, and
+  confirmed its hidden default names kernel/initrd/DTB `7.3.0-10-generic`. An
+  automatic probe with the corrected disposable stub path remained
+  serial-silent after UEFI started the loader, so it did not prove execution of
+  the hidden default. A separate generic EFI/ACPI control used RAM-only GRUB
+  commands to load the same kernel/initrd without the DTB. The restored root,
+  `/boot`, restored ESP, and `/mnt/sp12-data` mounted; systemd reached
+  `getty.target` and emitted `sp12-phase1-vm login:`. QMP powerdown led to an
+  orderly systemd shutdown. No credentials, network, or physical storage were
+  used. The generic control proves restored-root userspace in QEMU only; the
+  automatic target-DTB path, in-guest audit, and physical SP12 gate remain
+  open. See the [generic-control report](archive/validation/artifacts/sp12-restored-target-generic-control-20261114/report.md),
+  the [BootNext/ESP audit](../output/.unattended-luna-20261111210910Z/qemu-hosting/recovery-rescue-correct-root-20261112/rescue-boot-esp-mismatch-20261112.md)
   (SHA-256 `031732b2472fdd2ec1b362dc1a0f205a80472b83551aa8c13bc381276006eed1`)
-  and [corrected ESP rerun](output/.unattended-luna-20261111210910Z/qemu-hosting/recovery-rescue-correct-root-20261112/corrected-esp-bootnext-20261112/summary.md)
+  and [corrected ESP rerun](../output/.unattended-luna-20261111210910Z/qemu-hosting/recovery-rescue-correct-root-20261112/corrected-esp-bootnext-20261112/summary.md)
   (SHA-256 `8b3c9e4d98209ed8079488642b77443f6e4f19c66d607af596e2a60c1f0f7920`).
-  All new COW overlays passed `qemu-img check`; no physical storage or firmware
-  variables changed.
+  This config-path discrepancy remains specific to the disposable fixture
+  unless seen on hardware. All new COW overlays passed `qemu-img check`; no
+  physical storage or firmware variables changed.
 - **RPMB:** the pinned seven-patch QEMU RPMB series applied cleanly after its
   exact two prerequisite series on the pinned base. An isolated QEMU build
   passed its source manifest check; all 32 UFS QOS tests passed, including the
@@ -332,8 +388,11 @@ research, prior plans, and procedures are retained under `docs/archive/`.
 - **Physical targets and safeguards:** the B550I root NVMe is the Seagate
   `7VP015DH`; the Samsung `S7KHNJ0WA06121F` contains BitLocker data; the
   Lexar `AA8AGLJAH1RZABDT` contains the MSI BIOS image. All remain untouched.
-  The Apple HDD now holds the corrected live ISO; post-write inventory shows
-  only its image and EFI partitions, both unmounted. No separate blank B550I
+  On 2026-11-12 the Apple HDD received the corrected earlier live ISO, SHA-256
+  `e29dd59f76fcf73ce1e7ed8dfe60d88b83f7d2dd3c8a4cfcbab1b9b413817e36`;
+  post-write inventory then showed only its image and EFI partitions, both
+  unmounted. This is a historical write record; current local inventory does
+  not contain the drive. No separate blank B550I
   installation disk is present. Inventory evidence is at
   `output/.unattended-luna-20261111210910Z/qemu-hosting/sp12-live-qualification-20261112/b550i-storage-inventory-after-flash-20261112.txt`
   (SHA-256 `4acf97e98967dd1f1e4e3991b50de9c0fbb47d74c90827a2a58a11e80c9682bb`).
@@ -415,11 +474,13 @@ the final pin manifests, and retained build/verifier output under the ignored
   for the limited runtime scope and evidence.
 - A disposable UEFI rescue environment restored a deliberately damaged target
   ESP from its recovery set. Payload hashes, marker state, and read-only FAT
-  checks passed. A corrected one-time BootNext selected the ESP that received
-  the restored bytes and ran its EFI GRUB binary. Its fixture stub referenced
-  an absent `/boot/grub.cfg`; manually selecting the existing
-  `/boot/grub/grub.cfg` entered the main config, but no target kernel/userspace
-  boot was captured. Firmware-to-restored-target qualification remains open.
+  checks passed. The historical 2026-11-12 BootNext run selected the restored
+  ESP and reached GRUB but captured no kernel/userspace. A 2026-11-14 generic
+  EFI/ACPI control manually loaded the restored kernel/initrd without a DTB and
+  reached `getty.target` and a serial login prompt, then shut down cleanly. The
+  automatic hidden default/DTB path, in-guest package/payload audit, and
+  physical SP12 recovery boot remain open; see the
+  [generic-control report](archive/validation/artifacts/sp12-restored-target-generic-control-20261114/report.md).
   No physical SP12 fallback was used as a test target.
 - Recheck the current SP12 fallback trio and recovery manifest before any
   future boot-payload change. Keep the verified fallback intact.
@@ -494,11 +555,24 @@ results; protected-disk checksum/sentinel.
 
 ### 2.2 AMD64 installer lifecycle
 
-- In a disposable UEFI VM, run `tools/phase2-kernel-trial.py` end-to-end with a
-  reviewed displaced-payload archive, then verify candidate acknowledgement,
-  timeout rollback, and the saved generic fallback. The existing installer VM
-  exercised the earlier one-shot hook and returned to generic after declining
-  MOK; it did not exercise this helper's acknowledgement/timeout path.
+- The reviewed activation lifecycle is integrated into the private AMD64
+  candidate ISO at
+  `output/amd64-iso-lifecycle-20261114-build2/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+  SHA-256
+  `e81c6d16740849e6b0b85eedf011a2317b0ae0ce42965a43134068ad87c6aa1c`.
+  Build and selected-payload checks passed; focused helper, selector,
+  late-install, syntax, and static checks pass. A bounded network-disabled
+  UEFI/KVM boot smoke reached the guarded disk selector and stopped without
+  choosing a target. Installation and lifecycle have not been qualified in a
+  disposable reboot/rollback trial. See the
+  [private-pilot integration record](archive/validation/amd64-activation-lifecycle-20261114.md),
+  [candidate build record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
+  and [boot record](archive/validation/amd64-lifecycle-iso-liveboot-20261114.md).
+- In a disposable UEFI VM exercise first-install and replacement pre-erase
+  modes as applicable, then run candidate acknowledgement, timeout rollback,
+  explicit promotion, and rollback from acknowledged state while verifying the
+  saved generic fallback. Preserve exact backup-volume and candidate
+  identities through the trial.
 - Verify that the pinned package module signer is trusted by the exact
   candidate kernel, then use the enrolled owner keys for the kernel image and
   DKMS modules. The disposable VM refused the prior untrusted candidate's MOK
@@ -509,24 +583,31 @@ results; protected-disk checksum/sentinel.
 - Validate the ISO on supported AMD64 hardware using a disposable target disk
   or an equivalently safe rollback arrangement.
 
-**Evidence to add:** exact package hashes; Secure Boot state and MOK result;
-trial/rollback boot results; `dpkg --audit`; DKMS/module status; protected-disk
-checksum/sentinel; physical validation results for both target systems.
+**Evidence to add:** exact candidate and package hashes; Secure Boot state and
+MOK result; disposable trial/rollback boot results; `dpkg --audit`;
+DKMS/module status; protected-disk checksum/sentinel; physical validation
+results for both target systems.
 
 Physical validation on the intended AMD64 and ARM64 systems is a ship gate
 because generic QEMU does not validate the target GPU, device tree, firmware,
-or hardware drivers. Until those checks pass, label the images as VM-tested
-candidates rather than release ISOs.
+or hardware drivers. Until those checks pass, label each image with its exact
+verified test scope and keep it a private candidate rather than a release ISO.
 
 ### 2.3 Produce release images
 
-- ARM64 v4 is the current rebuilt VM-test candidate and has passed source,
-  offline-closure, boot-metadata, EFI/live-payload, and manifest checks. The
-  last verified AMD64 v2 ISO file was removed after its VM lifecycle passed;
-  rebuild AMD64 v3 from the frozen pins before qualifying or releasing it.
-- Rebuild both ISOs after the remaining Phase 1 and installer gates are
-  resolved, then repeat install, boot-without-media, fallback, and
-  protected-disk checks.
+- The current private AMD64 lifecycle candidate is the exact ISO recorded in
+  section 2.2. The SP12 final51 installer identity and evidence boundary are
+  recorded in the [private-pilot qualification ledger](PRIVATE-PILOT-QUALIFICATION.md);
+  its generic-QEMU install powered off cleanly, but detached boot has not been
+  qualified. The separate final51 SP12 live image also remains unqualified for
+  native live startup. Older v4, final37, and reconstructed AMD64 artifacts
+  remain historical inputs or fallbacks and do not replace these identities.
+- The reviewed SP12 combined rescue/install builder is integrated, but its
+  private media build is still open because the exact private support checkout
+  and machine files are unavailable and the last native builder host had less
+  than the required scratch space. Rebuild only affected images after their
+  remaining implementation/input gates are resolved, then repeat install,
+  boot-without-media, fallback, and protected-disk checks.
 - Save final ISO checksums and manifests with the release records. Current ISO
   candidates are ignored local artifacts, not pushed files.
 

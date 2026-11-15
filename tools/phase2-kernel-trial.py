@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import fcntl
 import gzip
 import hashlib
@@ -37,8 +38,17 @@ UNIT_DIR = pathlib.Path("/etc/systemd/system")
 SECUREBOOT_KEY_DIR = pathlib.Path("/var/lib/psycachy/secureboot")
 KERNEL_SIGNING_CERT = SECUREBOOT_KEY_DIR / "kernel.pem"
 MODULE_SIGNING_CERT = SECUREBOOT_KEY_DIR / "module.der"
+LOCAL_IDENTITY_PATH = pathlib.Path("/var/lib/psycachy/activation-identity.json")
+PIN_PATH = pathlib.Path("/var/lib/psycachy/amd64-kernel-pin.json")
+PACKAGE_DIR = pathlib.Path("/var/lib/psycachy/candidate-packages")
+FALLBACK_RELEASE_PATH = pathlib.Path("/var/lib/psycachy/fallback-release")
+ATTESTATION_DIR = pathlib.Path("/var/lib/psycachy/attestations")
+ACTIVATION_MODE_PATH = pathlib.Path("/var/lib/psycachy/activation-mode.json")
+NVIDIA_PACKAGE_IDENTITY_PATH = pathlib.Path("/var/lib/psycachy/nvidia-package-identity.json")
 BOOT_DIR = pathlib.Path("/boot")
 MODULES_DIR = pathlib.Path("/lib/modules")
+GRUB_CFG_PATH = pathlib.Path("/boot/grub/grub.cfg")
+GRUBENV_PATH = pathlib.Path("/boot/grub/grubenv")
 LOCKDOWN_STATUS = pathlib.Path("/sys/kernel/security/lockdown")
 MODULE_ENFORCE_STATUS = pathlib.Path("/sys/module/module/parameters/sig_enforce")
 SYS_MODULE_DIR = pathlib.Path("/sys/module")
@@ -235,11 +245,32 @@ def _archive_payloads(archive: tarfile.TarFile, payloads: dict,
     return entries, member_paths
 
 
+def _direct_disk_serial_for_path(path: pathlib.Path) -> str:
+    source_result = command(["findmnt", "-n", "-o", "SOURCE", "--target", str(path)])
+    source = source_result.stdout.strip()
+    if not source.startswith("/dev/") or "\n" in source:
+        raise TrialError("Backup evidence does not resolve to a directly mounted block device")
+    ancestry = command(["lsblk", "-s", "-n", "-r", "-o", "TYPE,NAME", source]).stdout.splitlines()
+    fields = [line.split(maxsplit=1) for line in ancestry]
+    if (not fields or any(len(item) != 2 for item in fields)
+            or fields[0][0] not in {"part", "disk"}
+            or sum(item[0] == "disk" for item in fields) != 1
+            or any(item[0] not in {"part", "disk"} for item in fields)):
+        raise TrialError("Backup volume has unknown or layered physical-disk ancestry")
+    disk_path = next(item[1] for item in fields if item[0] == "disk")
+    properties = command(["udevadm", "info", "-q", "property", "-n", disk_path]).stdout.splitlines()
+    serial = next((line.split("=", 1)[1] for line in properties if line.startswith("ID_SERIAL=")), "")
+    if not re.fullmatch(r"[A-Za-z0-9_.:+-]{1,128}", serial):
+        raise TrialError("Backup evidence disk lacks a stable physical serial")
+    return serial
+
+
 def verify_displaced_backup(path: pathlib.Path, pin: dict, *,
                             expected_manifest_sha256: str,
-                            approved_volume_id: str) -> dict:
+                            approved_volume_id: str,
+                            target_disk_serial: str | None = None) -> dict:
     """Verify reviewed archive identity and the exact displaced bytes it contains."""
-    if path.is_symlink() or not path.is_file():
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise TrialError("Displaced-payload backup manifest is missing or unsafe")
     if not re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256):
         raise TrialError("Reviewed displaced-payload manifest hash is invalid")
@@ -257,7 +288,8 @@ def verify_displaced_backup(path: pathlib.Path, pin: dict, *,
         raise TrialError("Displaced-payload backup architecture does not match the candidate")
     if manifest.get("kernel_release") != pin["kernel_release"]:
         raise TrialError("Displaced-payload backup release does not match the replaced release")
-    if (not isinstance(approved_volume_id, str) or not approved_volume_id.strip()
+    if (not isinstance(approved_volume_id, str)
+            or not re.fullmatch(r"[A-Za-z0-9_.:+-]{1,128}", approved_volume_id)
             or manifest.get("backup_volume_id") != approved_volume_id):
         raise TrialError("Displaced-payload backup volume does not match the reviewed volume identity")
     if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("archive_sha256", ""))):
@@ -266,13 +298,26 @@ def verify_displaced_backup(path: pathlib.Path, pin: dict, *,
     if not archive_path.is_absolute() or archive_path.is_symlink() or not archive_path.is_file():
         raise TrialError("Displaced-payload backup archive is missing or unsafe")
     archive_volume_result = command(["findmnt", "-n", "-o", "UUID", "--target", str(archive_path)])
+    manifest_volume_result = command(["findmnt", "-n", "-o", "UUID", "--target", str(path)])
     root_volume_result = command(["findmnt", "-n", "-o", "UUID", "--target", "/"])
     archive_volume_id = archive_volume_result.stdout.strip()
+    manifest_volume_id = manifest_volume_result.stdout.strip()
     root_volume_id = root_volume_result.stdout.strip()
     if not archive_volume_id or "\n" in archive_volume_id:
         raise TrialError("Cannot identify the displaced-payload backup filesystem UUID")
     if archive_volume_id.casefold() != approved_volume_id.casefold():
         raise TrialError("Displaced-payload archive is not on the reviewed backup volume")
+    if manifest_volume_id.casefold() != approved_volume_id.casefold():
+        raise TrialError("Displaced-payload manifest is not on the reviewed backup volume")
+    backup_disk_serial = None
+    if target_disk_serial is not None:
+        if not re.fullmatch(r"[A-Za-z0-9_.:+-]{1,128}", target_disk_serial):
+            raise TrialError("Selected target disk serial is invalid")
+        archive_disk_serial = _direct_disk_serial_for_path(archive_path)
+        manifest_disk_serial = _direct_disk_serial_for_path(path)
+        backup_disk_serial = archive_disk_serial
+        if (backup_disk_serial == target_disk_serial or manifest_disk_serial != backup_disk_serial):
+            raise TrialError("Backup archive must be reachable on a different serial-identified disk")
     if root_volume_id and archive_volume_id.casefold() == root_volume_id.casefold():
         raise TrialError("Displaced-payload backup volume is also the target root volume")
     package_versions = manifest.get("displaced_package_versions")
@@ -331,6 +376,7 @@ def verify_displaced_backup(path: pathlib.Path, pin: dict, *,
             "archive_path": str(archive_path),
             "archive_sha256": manifest["archive_sha256"],
             "backup_volume_id": archive_volume_id,
+            "backup_disk_serial": backup_disk_serial,
             "payloads": {name: payloads[name] for name in sorted(required)}}
 
 
@@ -524,6 +570,37 @@ def installed_package(name: str) -> tuple[str, str]:
     return fields[0], fields[1]
 
 
+def installed_nvidia_package_identity(path: pathlib.Path = NVIDIA_PACKAGE_IDENTITY_PATH) -> dict:
+    if path.is_symlink() or not path.is_file() or path.stat().st_uid != 0 or path.stat().st_mode & 0o077:
+        raise TrialError("Verified local NVIDIA package identity is missing or unsafe")
+    try:
+        identity = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TrialError(f"Cannot read local NVIDIA package identity: {exc}") from exc
+    packages = identity.get("packages")
+    if identity.get("schema_version") != 1 or identity.get("architecture") != "amd64" or not isinstance(packages, list) or len(packages) != 2:
+        raise TrialError("Local NVIDIA package identity has an unsupported schema")
+    names = {item.get("name") for item in packages if isinstance(item, dict)}
+    if len(names) != 2:
+        raise TrialError("Local NVIDIA package identity has duplicate package names")
+    drivers = [name for name in names if re.fullmatch(r"nvidia-driver-[A-Za-z0-9.+-]+-open", str(name))]
+    dkms = [name for name in names if re.fullmatch(r"nvidia-dkms-[A-Za-z0-9.+-]+-open", str(name))]
+    if len(drivers) != 1 or len(dkms) != 1 or drivers[0].removeprefix("nvidia-driver-") != dkms[0].removeprefix("nvidia-dkms-"):
+        raise TrialError("Local NVIDIA package identity is not one matching driver/DKMS pair")
+    for item in packages:
+        name, version = item.get("name"), item.get("version")
+        if (not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9.+:~_-]+", version)
+                or not isinstance(item.get("filename"), str)
+                or pathlib.PurePosixPath(item["filename"]).name != item["filename"]
+                or not re.fullmatch(r"[0-9a-f]{64}", str(item.get("sha256", "")))):
+            raise TrialError("Local NVIDIA package identity contains invalid package fields")
+        result = command(["dpkg-query", "-W", "-f=${db:Status-Abbrev} ${Version} ${Architecture}", name], allow_failure=True)
+        fields = result.stdout.strip().split()
+        if result.returncode or len(fields) != 3 or not fields[0].startswith("ii") or fields[1] != version or fields[2] != "amd64":
+            raise TrialError(f"Installed NVIDIA package does not match its verified local identity: {name}")
+    return identity
+
+
 def require_clean_packages() -> None:
     audit = command(["dpkg", "--audit"])
     if audit.stdout.strip():
@@ -611,7 +688,7 @@ def kernel_payload_identity(release: str, architecture: str) -> dict:
     return files
 
 
-def verify_fallback_unchanged(state: dict) -> None:
+def verify_fallback_unchanged(state: dict, *, require_saved_default: bool = True) -> None:
     current = fallback_identity(state["fallback_release"], state["architecture"])
     if current["image_package_version"] != state["fallback_image_package_version"]:
         raise TrialError("The known-good fallback image package changed during the trial")
@@ -619,15 +696,15 @@ def verify_fallback_unchanged(state: dict) -> None:
         raise TrialError("The known-good fallback headers package changed during the trial")
     if current["payload_hashes"] != state["fallback_payload_hashes"]:
         raise TrialError("The known-good fallback payload changed during the trial")
-    grub_cfg = pathlib.Path("/boot/grub/grub.cfg")
-    grubenv = pathlib.Path("/boot/grub/grubenv")
+    grub_cfg = GRUB_CFG_PATH
+    grubenv = GRUBENV_PATH
     if grub_cfg.is_symlink() or not grub_cfg.is_file() or grubenv.is_symlink() or not grubenv.is_file():
         raise TrialError("Fallback GRUB configuration or environment is missing or unsafe")
     config_text = grub_cfg.read_text(encoding="utf-8", errors="replace")
     entries = discover_grub_entries(config_text, {state["fallback_release"]})
     if entries[state["fallback_release"]] != state["fallback_entry"]:
         raise TrialError("The known-good fallback GRUB entry changed during the trial")
-    if grub_state(grubenv).get("saved_entry") != state["fallback_entry"]:
+    if require_saved_default and grub_state(grubenv).get("saved_entry") != state["fallback_entry"]:
         raise TrialError("The known-good fallback is no longer the saved GRUB default")
     block = grub_entry_block(config_text, state["fallback_entry"].rsplit(">", 1)[-1])
     block_hash = verify_grub_entry_payloads(block, state["fallback_release"])
@@ -671,6 +748,33 @@ def _certificate_sha256(path: pathlib.Path, *, der: bool) -> str:
     return digest
 
 
+def local_identity(machine_id: str) -> dict:
+    """Fingerprint per-install signing identities separately from package pins."""
+    kernel_fp = _certificate_sha256(KERNEL_SIGNING_CERT, der=False)
+    kernel_der = KERNEL_SIGNING_CERT.with_suffix(".der")
+    if _certificate_sha256(kernel_der, der=True) != kernel_fp:
+        raise TrialError("Local kernel certificate PEM and DER identities differ")
+    module_fp = _certificate_sha256(MODULE_SIGNING_CERT, der=True)
+    identity = {
+        "schema_version": 1,
+        "machine_id": machine_id,
+        "kernel_signing_certificate_sha256": kernel_fp,
+        "module_signing_certificate_sha256": module_fp,
+    }
+    if LOCAL_IDENTITY_PATH.exists() or LOCAL_IDENTITY_PATH.is_symlink():
+        if LOCAL_IDENTITY_PATH.is_symlink() or not LOCAL_IDENTITY_PATH.is_file():
+            raise TrialError("Local activation identity is missing or unsafe")
+        try:
+            previous = json.loads(LOCAL_IDENTITY_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise TrialError(f"Cannot read local activation identity: {exc}") from exc
+        if previous != identity:
+            raise TrialError("Local activation identity changed; refusing trial")
+    else:
+        write_state(LOCAL_IDENTITY_PATH, identity)
+    return identity
+
+
 def _require_enrolled_certificate(path: pathlib.Path) -> None:
     result = command(["mokutil", "--test-key", str(path)], allow_failure=True)
     lines = {
@@ -695,9 +799,9 @@ def _required_module_signers(pin: dict) -> dict[str, str]:
     if not isinstance(signers, dict) or not signers:
         raise TrialError("Secure Boot required module signers are not pinned; refusing")
     if any(not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", name)
-           or not isinstance(signer, str) or not signer.strip()
+           or not isinstance(signer, str)
            for name, signer in signers.items()):
-        raise TrialError("Secure Boot required module signer map is malformed; refusing")
+        raise TrialError("Secure Boot required module inventory is malformed; refusing")
     return dict(sorted(signers.items()))
 
 
@@ -805,11 +909,8 @@ def _verify_required_module_signers(release: str, signers: dict[str, str], *,
         if enforce_path.read_text(encoding="ascii", errors="replace").strip().lower() not in {"y", "1"}:
             raise TrialError("Candidate kernel is not enforcing module signatures")
     for module, expected_signer in signers.items():
-        signer = command(["modinfo", "-k", release, "-F", "signer", module], allow_failure=True)
         sig_id = command(["modinfo", "-k", release, "-F", "sig_id", module], allow_failure=True)
         filename = command(["modinfo", "-k", release, "-n", module], allow_failure=True)
-        if signer.returncode != 0 or signer.stdout.strip() != expected_signer:
-            raise TrialError(f"Required module signer mismatch for {module}")
         if sig_id.returncode != 0 or sig_id.stdout.strip() != "PKCS#7":
             raise TrialError(f"Required module is missing a PKCS#7 signature: {module}")
         module_path = pathlib.Path(filename.stdout.strip())
@@ -911,6 +1012,9 @@ def verify_candidate_integrity(state: dict, *, runtime: bool) -> None:
             raise TrialError(f"Candidate package version changed during the trial: {package}")
     if kernel_payload_identity(release, state["architecture"]) != state["candidate_payload_hashes"]:
         raise TrialError("Candidate kernel payload changed during the trial")
+    if (_sha256_file(NVIDIA_PACKAGE_IDENTITY_PATH) != state.get("nvidia_package_identity_sha256")
+            or installed_nvidia_package_identity() != state.get("nvidia_package_identity")):
+        raise TrialError("Verified NVIDIA package identity changed during the trial")
     if state.get("secure_boot_mode") == "enabled":
         current = secure_boot_state()
         if current != "enabled":
@@ -927,6 +1031,37 @@ def mounted_device(mountpoint: str, *, exact: bool = False) -> dict:
     if len(fields) != 2 or not fields[0] or not fields[1]:
         raise TrialError(f"Cannot identify the mounted device for {mountpoint}")
     return {"source": fields[0], "fstype": fields[1]}
+
+
+def verified_activation_mode(path: pathlib.Path, target_source: str) -> dict:
+    if path.is_symlink() or not path.is_file() or path.stat().st_uid != 0 or path.stat().st_mode & 0o077:
+        raise TrialError("Pre-erase activation-mode record is missing or unsafe")
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TrialError(f"Cannot read pre-erase activation mode: {exc}") from exc
+    lines = command(["lsblk", "-s", "-n", "-r", "-o", "TYPE,NAME", target_source]).stdout.splitlines()
+    disks = [line.split(maxsplit=1)[1] for line in lines
+             if len(line.split(maxsplit=1)) == 2 and line.split(maxsplit=1)[0] == "disk"]
+    serials = []
+    for disk in disks:
+        props = command(["udevadm", "info", "-q", "property", "-n", disk]).stdout.splitlines()
+        serials.append(next((line.split("=", 1)[1] for line in props if line.startswith("ID_SERIAL=")), ""))
+    if (record.get("schema_version") != 1 or record.get("mode") not in {"first-install", "replacement"}
+            or not isinstance(record.get("disk_serial"), str)
+            or not re.fullmatch(r"[A-Za-z0-9_.:+-]{1,128}", record["disk_serial"])
+            or len(serials) != 1 or record.get("disk_serial") != serials[0]):
+        raise TrialError("Pre-erase activation decision does not match the current target disk")
+    if record["mode"] == "first-install":
+        if record.get("operator_confirmed_no_displaced_candidate_payload") is not True or "backup" in record:
+            raise TrialError("First-install decision lacks explicit no-displaced-payload confirmation")
+    else:
+        backup = record.get("backup")
+        if not isinstance(backup, dict) or set(backup) != {
+            "manifest_path", "manifest_sha256", "volume_id", "verified_archive_sha256", "backup_disk_serial"
+        }:
+            raise TrialError("Replacement decision lacks the pre-verified displaced-payload backup")
+    return record
 
 
 def require_root() -> None:
@@ -957,15 +1092,36 @@ def prepare_locked(args, state_file: pathlib.Path) -> dict:
     esp_mount = mounted_device("/boot/efi", exact=True)
     if esp_mount["fstype"] not in {"vfat", "fat", "msdos"}:
         raise TrialError("The mounted EFI system partition is not FAT")
+    activation_mode = verified_activation_mode(args.activation_mode, root_mount["source"])
+    if args.first_install != (activation_mode["mode"] == "first-install"):
+        raise TrialError("Prepare mode does not match the explicit pre-erase activation decision")
     package_identity = verify_package_directory(pin, args.packages.resolve())
-    displaced_backup = verify_displaced_backup(
-        args.backup_manifest, pin,
-        expected_manifest_sha256=args.backup_manifest_sha256,
-        approved_volume_id=args.approved_backup_volume_id,
-    )
+    nvidia_package_identity = installed_nvidia_package_identity()
+    if args.first_install:
+        if args.backup_manifest or args.backup_manifest_sha256 or args.approved_backup_volume_id:
+            raise TrialError("First-install mode cannot be combined with backup options")
+        displaced_backup = None
+    else:
+        if not args.backup_manifest or not args.backup_manifest_sha256 or not args.approved_backup_volume_id:
+            raise TrialError("Replacement mode requires the reviewed actual backup manifest, hash, and volume")
+        displaced_backup = verify_displaced_backup(
+            args.backup_manifest, pin,
+            expected_manifest_sha256=args.backup_manifest_sha256,
+            approved_volume_id=args.approved_backup_volume_id,
+            target_disk_serial=activation_mode["disk_serial"],
+        )
+        recorded_backup = activation_mode["backup"]
+        for field, value in (("manifest_path", displaced_backup["manifest_path"]),
+                             ("manifest_sha256", displaced_backup["manifest_sha256"]),
+                             ("volume_id", displaced_backup["backup_volume_id"]),
+                             ("verified_archive_sha256", displaced_backup["archive_sha256"]),
+                             ("backup_disk_serial", displaced_backup["backup_disk_serial"])):
+            if recorded_backup.get(field) != value:
+                raise TrialError(f"Replacement backup differs from its pre-erase verification: {field}")
     require_clean_packages()
     release = pin["kernel_release"]
     secure_boot = secure_boot_state()
+    local_certificates = local_identity(machine_id)
     secure_boot_identity = None
     if secure_boot == "enabled":
         secure_boot_identity = verify_secure_boot_identity(pin, release)
@@ -978,8 +1134,8 @@ def prepare_locked(args, state_file: pathlib.Path) -> dict:
     candidate_payloads = kernel_payload_identity(release, pin["architecture"])
     fallback = fallback_identity(args.fallback_release, pin["architecture"])
 
-    grub_cfg = pathlib.Path("/boot/grub/grub.cfg")
-    grubenv = pathlib.Path("/boot/grub/grubenv")
+    grub_cfg = GRUB_CFG_PATH
+    grubenv = GRUBENV_PATH
     if not grub_cfg.is_file() or grub_cfg.is_symlink() or not grubenv.is_file() or grubenv.is_symlink():
         raise TrialError("GRUB configuration or environment is missing or unsafe")
     entries = discover_grub_entries(grub_cfg.read_text(encoding="utf-8", errors="replace"),
@@ -1022,8 +1178,14 @@ def prepare_locked(args, state_file: pathlib.Path) -> dict:
         "efi_mount": esp_mount,
         "boot_id": pathlib.Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip(),
         "packages": package_identity["packages"],
+        "nvidia_package_identity": nvidia_package_identity,
+        "nvidia_package_identity_sha256": _sha256_file(NVIDIA_PACKAGE_IDENTITY_PATH),
         "candidate_payload_hashes": candidate_payloads,
         "displaced_backup": displaced_backup,
+        "installation_mode": "first-install" if args.first_install else "replacement",
+        "target_disk_serial": activation_mode["disk_serial"],
+        "activation_mode_sha256": _sha256_file(args.activation_mode),
+        "local_activation_identity": local_certificates,
         "candidate_entry": candidate_entry,
         "fallback_release": args.fallback_release,
         "fallback_image_package_version": fallback["image_package_version"],
@@ -1132,13 +1294,8 @@ def cleanup_runtime(state: dict) -> None:
         if path.parent != UNIT_DIR or path.is_symlink():
             raise TrialError(f"Refusing to remove unexpected trial unit path: {path}")
         path.unlink(missing_ok=True)
-    runtime = state.get("runtime", {})
-    script = SCRIPT_PATH
-    if runtime.get("script_created") and script.is_file() and not script.is_symlink():
-        with script.open("rb") as source:
-            digest = hashlib.file_digest(source, "sha256").hexdigest()
-        if digest == runtime.get("script_sha256"):
-            script.unlink()
+    # Keep the helper installed after acknowledgement so a later explicit
+    # rollback can restore the verified fallback from acknowledged/promoted.
     command(["systemctl", "daemon-reload"], allow_failure=True)
 
 
@@ -1155,10 +1312,15 @@ def finalize_trial(state_file: pathlib.Path, state: dict, final_state: str, resu
 def arm_timeout_locked(state_file: pathlib.Path) -> dict:
     state = read_state(state_file)
     current = os.uname().release
+    if state["state"] == "promoted":
+        verify_fallback_unchanged(state, require_saved_default=False)
+        if grub_state(GRUBENV_PATH).get("saved_entry") != state["candidate_entry"]:
+            raise TrialError("Promoted candidate is no longer the saved GRUB default")
+        return state
     verify_fallback_unchanged(state)
     if state["state"] in {"rollback_requested", "timeout_reboot_requested"}:
         if current == state["fallback_release"]:
-            grubenv = pathlib.Path("/boot/grub/grubenv")
+            grubenv = GRUBENV_PATH
             grub = grub_state(grubenv)
             if grub.get("saved_entry") != state["fallback_entry"]:
                 raise TrialError("The known-good fallback default changed during rollback")
@@ -1175,7 +1337,7 @@ def arm_timeout_locked(state_file: pathlib.Path) -> dict:
     if state["state"] != "pending":
         return state
     if current == state["fallback_release"]:
-        grubenv = pathlib.Path("/boot/grub/grubenv")
+        grubenv = GRUBENV_PATH
         grub = grub_state(grubenv)
         if grub.get("saved_entry") != state["fallback_entry"]:
             raise TrialError("The known-good fallback default changed during the trial")
@@ -1216,7 +1378,7 @@ def acknowledge_locked(state_file: pathlib.Path) -> dict:
     if state.get("secure_boot_mode") == "enabled":
         verify_candidate_integrity(state, runtime=True)
     verify_fallback_unchanged(state)
-    grubenv = pathlib.Path("/boot/grub/grubenv")
+    grubenv = GRUBENV_PATH
     if grubenv.is_symlink() or not grubenv.is_file():
         raise TrialError("GRUB environment is missing or unsafe")
     grub = grub_state(grubenv)
@@ -1227,12 +1389,144 @@ def acknowledge_locked(state_file: pathlib.Path) -> dict:
     require_clean_packages()
     for unit in state.get("required_units", []):
         command(["systemctl", "is-active", "--quiet", unit])
-    cleanup_runtime(state)
+    # Keep the boot-time unit enabled until a later fallback boot can finalize
+    # an explicit rollback from acknowledged/promoted state.
+    command(["systemctl", "disable", "--now", f"{TIMEOUT_UNIT}.timer"], allow_failure=True)
     state["state"] = "acknowledged"
     state["acknowledged_unix"] = int(time.time())
     state["observed_kernel_release"] = os.uname().release
     write_state(state_file, state)
     return state
+
+
+ATTESTATION_GATES = {
+    "candidate_boot_and_userspace",
+    "secure_boot_and_module_trust",
+    "nvidia_driver_and_gpu",
+    "fallback_and_recovery",
+}
+
+
+def verify_health_attestation(path: pathlib.Path, state: dict) -> dict:
+    ensure_attestation_directory()
+    if path.is_symlink() or not path.is_file():
+        raise TrialError("Reviewed local health attestation is missing or unsafe")
+    try:
+        if path.resolve(strict=True).parent != ATTESTATION_DIR.resolve(strict=True):
+            raise TrialError("Health attestation must be stored in the local attestation directory")
+        if path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+            raise TrialError("Health attestation must be root-owned and not group/world writable")
+        attestation = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TrialError(f"Cannot read reviewed local health attestation: {exc}") from exc
+    identity = state.get("local_activation_identity", {})
+    expected = {
+        "machine_id": state["machine_id"],
+        "candidate_pin_sha256": state["pin_sha256"],
+        "candidate_payload_hashes": state["candidate_payload_hashes"],
+        "kernel_signing_certificate_sha256": identity.get("kernel_signing_certificate_sha256"),
+        "module_signing_certificate_sha256": identity.get("module_signing_certificate_sha256"),
+    }
+    if attestation.get("schema_version") != 1 or attestation.get("reviewed") is not True:
+        raise TrialError("Health attestation is not a reviewed schema-version-1 record")
+    if not isinstance(attestation.get("reviewer"), str) or not attestation["reviewer"].strip():
+        raise TrialError("Health attestation has no named reviewer")
+    reviewed_at = attestation.get("reviewed_at_utc")
+    try:
+        parsed_time = datetime.datetime.fromisoformat(reviewed_at[:-1] + "+00:00") if isinstance(reviewed_at, str) and reviewed_at.endswith("Z") else None
+    except ValueError:
+        parsed_time = None
+    if parsed_time is None or parsed_time.utcoffset() != datetime.timedelta(0):
+        raise TrialError("Health attestation has no UTC review timestamp")
+    for field, value in expected.items():
+        if attestation.get(field) != value:
+            raise TrialError(f"Health attestation does not match current {field}")
+    gates = attestation.get("physical_gates")
+    if not isinstance(gates, dict) or set(gates) != ATTESTATION_GATES:
+        raise TrialError("Health attestation must cover the complete reviewed physical-gate set")
+    if any(value is not True for value in gates.values()):
+        raise TrialError("A required physical health gate is not explicitly passed")
+    return {"path": str(path), "sha256": _sha256_file(path), "reviewer": attestation["reviewer"],
+            "reviewed_at_utc": attestation["reviewed_at_utc"], "physical_gates": gates}
+
+
+def ensure_attestation_directory() -> None:
+    parent = ATTESTATION_DIR.parent
+    if parent.is_symlink() or not parent.is_dir() or parent.stat().st_uid != 0 or parent.stat().st_mode & 0o022:
+        raise TrialError("Local activation state directory is missing or unsafe")
+    try:
+        ATTESTATION_DIR.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    if (ATTESTATION_DIR.is_symlink() or not ATTESTATION_DIR.is_dir()
+            or ATTESTATION_DIR.stat().st_uid != 0 or ATTESTATION_DIR.stat().st_mode & 0o077):
+        raise TrialError("Local health-attestation directory must be root-owned mode 0700")
+
+
+def attestation_template(state_file: pathlib.Path) -> dict:
+    require_root()
+    state = read_state(state_file)
+    if state["state"] != "acknowledged":
+        raise TrialError("A template is available only after candidate acknowledgement")
+    ensure_attestation_directory()
+    identity = state.get("local_activation_identity", {})
+    template = {
+        "schema_version": 1,
+        "reviewed": False,
+        "reviewer": "",
+        "reviewed_at_utc": "",
+        "machine_id": state["machine_id"],
+        "candidate_pin_sha256": state["pin_sha256"],
+        "candidate_payload_hashes": state["candidate_payload_hashes"],
+        "kernel_signing_certificate_sha256": identity.get("kernel_signing_certificate_sha256"),
+        "module_signing_certificate_sha256": identity.get("module_signing_certificate_sha256"),
+        "physical_gates": {name: False for name in sorted(ATTESTATION_GATES)},
+    }
+    path = ATTESTATION_DIR / "health-attestation.json"
+    if path.exists() or path.is_symlink():
+        raise TrialError("Health-attestation file already exists; review it in place")
+    write_state(path, template)
+    return {"path": str(path), "template": template}
+
+
+def promote_locked(state_file: pathlib.Path, attestation_path: pathlib.Path) -> dict:
+    state = read_state(state_file)
+    if state["state"] != "acknowledged":
+        raise TrialError(f"Cannot promote candidate in state {state['state']}; acknowledge it first")
+    if os.uname().release != state["kernel_release"]:
+        raise TrialError("The pinned candidate kernel is not currently running")
+    if state.get("secure_boot_mode") != "enabled":
+        raise TrialError("Promotion requires Secure Boot enabled during the candidate trial")
+    verify_candidate_integrity(state, runtime=True)
+    verify_fallback_unchanged(state)
+    grubenv = GRUBENV_PATH
+    if grubenv.is_symlink() or not grubenv.is_file():
+        raise TrialError("GRUB environment is missing or unsafe")
+    grub = grub_state(grubenv)
+    if grub.get("saved_entry") != state["fallback_entry"]:
+        raise TrialError("The known-good fallback must remain the saved default until promotion")
+    if grub.get("next_entry"):
+        raise TrialError("A pending one-time GRUB entry blocks promotion")
+    require_clean_packages()
+    attestation = verify_health_attestation(attestation_path, state)
+    state["state"] = "promotion_pending"
+    state["promotion_started_unix"] = int(time.time())
+    state["health_attestation"] = attestation
+    write_state(state_file, state)
+    command(["grub-editenv", str(grubenv), "set", f"saved_entry={state['candidate_entry']}"])
+    if grub_state(grubenv).get("saved_entry") != state["candidate_entry"]:
+        raise TrialError("GRUB did not retain the promoted candidate default")
+    state["state"] = "promoted"
+    state["promoted_unix"] = int(time.time())
+    write_state(state_file, state)
+    return state
+
+
+def promote(args) -> dict:
+    require_root()
+    state_file = args.state_file.resolve()
+    with lock_state(state_file):
+        return promote_locked(state_file, args.attestation)
 
 
 def acknowledge(args) -> dict:
@@ -1244,30 +1538,45 @@ def acknowledge(args) -> dict:
 
 def rollback_locked(state_file: pathlib.Path, *, expired: bool = False) -> dict:
     state = read_state(state_file)
-    verify_fallback_unchanged(state)
+    if expired and state["state"] not in {"pending", "rollback_requested", "timeout_reboot_requested"}:
+        raise TrialError(f"Cannot expire a trial in state {state['state']}")
+    if state["state"] in {"promoted", "promotion_pending"}:
+        verify_fallback_unchanged(state, require_saved_default=False)
+    else:
+        verify_fallback_unchanged(state)
     if state["state"] == "timeout_reboot_requested":
         requested_status = "timeout_reboot_requested"
     elif expired:
         requested_status = "timeout_reboot_requested"
     else:
         requested_status = "rollback_requested"
-    if state["state"] not in {"pending", "rollback_requested", "timeout_reboot_requested"}:
+    if state["state"] not in {"pending", "acknowledged", "promotion_pending", "promoted", "rollback_requested", "timeout_reboot_requested"}:
         raise TrialError(f"Cannot roll back trial in state {state['state']}")
     current = os.uname().release
     if current not in {state["kernel_release"], state["fallback_release"]}:
         raise TrialError(f"Refusing rollback from an unexpected running kernel: {current}")
-    grubenv = pathlib.Path("/boot/grub/grubenv")
+    grubenv = GRUBENV_PATH
     grub = grub_state(grubenv)
-    if grub.get("saved_entry") != state["fallback_entry"]:
+    if state["state"] in {"promoted", "promotion_pending"}:
+        if grub.get("saved_entry") not in {state["fallback_entry"], state["candidate_entry"]}:
+            raise TrialError("Promoted GRUB default changed; refusing rollback")
+    elif grub.get("saved_entry") != state["fallback_entry"]:
         raise TrialError("The known-good fallback default changed during the trial")
     command(["grub-editenv", str(grubenv), "unset", "next_entry"])
     if grub_state(grubenv).get("next_entry"):
         raise TrialError("Failed to clear the pending one-time boot entry")
     if current == state["fallback_release"]:
+        if grub.get("saved_entry") != state["fallback_entry"]:
+            command(["grub-editenv", str(grubenv), "set", f"saved_entry={state['fallback_entry']}"])
+            if grub_state(grubenv).get("saved_entry") != state["fallback_entry"]:
+                raise TrialError("Failed to restore the known-good fallback default")
         return finalize_trial(state_file, state,
                               "timed_out" if expired or state["state"] == "timeout_reboot_requested" else "rolled_back",
                               "The known-good fallback is running; no reboot was required.")
     command(["systemctl", "disable", "--now", f"{TIMEOUT_UNIT}.timer"], allow_failure=True)
+    command(["grub-editenv", str(grubenv), "set", f"saved_entry={state['fallback_entry']}"])
+    if grub_state(grubenv).get("saved_entry") != state["fallback_entry"]:
+        raise TrialError("Failed to restore the known-good fallback default before reboot")
     state["state"] = requested_status
     state["rollback_unix"] = int(time.time())
     state["observed_kernel_release"] = current
@@ -1294,11 +1603,15 @@ def build_parser() -> argparse.ArgumentParser:
     prep = subparsers.add_parser("prepare", help="verify a pin and schedule one GRUB boot")
     prep.add_argument("--pin", type=pathlib.Path, required=True)
     prep.add_argument("--packages", type=pathlib.Path, required=True)
-    prep.add_argument("--backup-manifest", type=pathlib.Path, required=True,
+    prep.add_argument("--activation-mode", type=pathlib.Path, default=ACTIVATION_MODE_PATH)
+    mode = prep.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--first-install", action="store_true",
+                      help="prepare a new blank-target installation without inventing displaced state")
+    mode.add_argument("--backup-manifest", type=pathlib.Path,
                       help="manifest for the archived bytes displaced by this install")
-    prep.add_argument("--backup-manifest-sha256", required=True,
+    prep.add_argument("--backup-manifest-sha256",
                       help="manifest hash reviewed before the install overwrote files")
-    prep.add_argument("--approved-backup-volume-id", required=True,
+    prep.add_argument("--approved-backup-volume-id",
                       help="reviewed filesystem UUID of an independent backup volume")
     prep.add_argument("--expected-machine-id", required=True,
                       help="machine-id captured during the reviewed identity preflight")
@@ -1306,7 +1619,11 @@ def build_parser() -> argparse.ArgumentParser:
     prep.add_argument("--timeout-seconds", type=int, default=300)
     prep.add_argument("--require-unit", action="append", default=[])
     subparsers.add_parser("acknowledge", help="accept a healthy candidate userspace")
-    subparsers.add_parser("rollback", help="clear a pending trial and reboot to the fallback")
+    promote = subparsers.add_parser("promote", help="make the acknowledged candidate the saved default")
+    promote.add_argument("--attestation", type=pathlib.Path, required=True,
+                         help="root-owned reviewed local physical-health attestation JSON")
+    subparsers.add_parser("attestation-template", help="write a bound local physical-health template")
+    subparsers.add_parser("rollback", help="restore fallback default and reboot safely")
     subparsers.add_parser("expire", help=argparse.SUPPRESS)
     subparsers.add_parser("arm-timeout", help=argparse.SUPPRESS)
     subparsers.add_parser("status", help="print the retained trial state")
@@ -1323,6 +1640,10 @@ def main(argv: list[str] | None = None) -> int:
             state = prepare(args)
         elif args.action == "acknowledge":
             state = acknowledge(args)
+        elif args.action == "promote":
+            state = promote(args)
+        elif args.action == "attestation-template":
+            state = attestation_template(args.state_file.resolve())
         elif args.action == "rollback":
             state = rollback(args)
         elif args.action == "expire":

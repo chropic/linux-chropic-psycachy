@@ -7,6 +7,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import json
 
 
 class LateLoggingTest(unittest.TestCase):
@@ -24,13 +25,20 @@ class LateLoggingTest(unittest.TestCase):
             for name in (
                 "install-target.sh", "psycachy-secureboot.sh", "configure-nvidia-dkms.sh",
                 "activate.sh", "activate-launcher.sh", "kernel-preinst", "kernel-postinst",
-                "psycachy-activation.desktop",
+                "psycachy-activation.desktop", "phase2-kernel-trial.py", "amd64-kernel-pin.json",
             ):
                 (media / "helpers" / name).write_text("test helper\n")
+            mode = work / "activation-mode.json"
+            mode.write_text(json.dumps({"schema_version": 1, "mode": "first-install",
+                "disk_serial": "selected-disk-1",
+                "operator_confirmed_no_displaced_candidate_payload": True}))
+            mode.chmod(0o600)
             for name, body in {
                 "mountpoint": "exit 0",
                 "findmnt": "echo /dev/test-partition",
                 "lsblk": "echo 'disk /dev/test-disk'",
+                "udevadm": "echo ID_SERIAL=selected-disk-1",
+                "stat": "echo 0:600",
                 "curtin": 'echo "$PSYCACHY_TEST_MESSAGE" >&2; exit 41',
             }.items():
                 executable = binaries / name
@@ -44,12 +52,17 @@ class LateLoggingTest(unittest.TestCase):
             script = work / "late-install.sh"
             script.write_text(source)
             env = dict(os.environ, PATH=f"{binaries}:{os.environ['PATH']}",
-                       PSYCACHY_TEST_MESSAGE="first signing failure")
+                       PSYCACHY_TEST_MESSAGE="first signing failure",
+                       PSYCACHY_ACTIVATION_MODE_FILE=str(mode))
             result = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 41, result.stderr)
             log = target / "var/log/psycachy-installer.log"
             self.assertIn("first signing failure", log.read_text())
             self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o600)
+            persisted_mode = target / "var/lib/psycachy/activation-mode.json"
+            self.assertTrue(persisted_mode.is_file())
+            self.assertEqual(stat.S_IMODE(persisted_mode.stat().st_mode), 0o600)
+            self.assertEqual(json.loads(persisted_mode.read_text())["disk_serial"], "selected-disk-1")
             self.assertFalse((target / "var/lib/psycachy/installer-target").exists())
             env["PSYCACHY_TEST_MESSAGE"] = "second signing failure"
             retry = subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
