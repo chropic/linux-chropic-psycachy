@@ -60,20 +60,24 @@ may be superseded; use the private-pilot ledger for current pilot status.
   continuation report](archive/validation/supervised-continuation-20261115.md)
   and [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
-- **2026-11-15 18:26 UTC storage cleanup:** retired obsolete local ISO copies,
-  a transfer archive with an exact extracted-tree copy, one extracted QEMU
-  source tree, two old remote installer ISO outputs, and one byte-identical
-  extracted squashfs copy. Retained the signed ARM64 base, active final51
-  artifacts, Ventoy contents, full audit tree, metadata, recovery inputs, and
-  historical QCOW evidence. The old private-live-v2 binary was left retired
-  after the user confirmed its candidate record and source were sufficient.
-  Local and remote free space and the remaining
-  privileged cleanup are recorded in the [storage cleanup report](archive/validation/storage-cleanup-20261115.md).
+- **2026-11-15 18:33 UTC storage cleanup:** retired superseded local and remote
+  ISO copies, a transfer archive with an exact extracted-tree copy, one
+  extracted QEMU source tree, and one byte-identical extracted squashfs copy.
+  The user completed both remaining checksum-verified ISO removals; their
+  manifests, build records, and sidecar remain. Retained the signed ARM64
+  base, active final51 artifacts, Ventoy contents, full audit tree, metadata,
+  recovery inputs, and historical QCOW evidence. The old private-live-v2
+  binary remains retired by user choice after no exact copy was found. Local
+  free space is 103.90 GiB (23.90 GiB above reserve, 16.10 GiB below target);
+  SP12 has 34.75 GiB, about 2.94 GB below the planning floor. No build was
+  started. See the [storage cleanup report](archive/validation/storage-cleanup-20261115.md).
 
-- **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO is
-  `output/amd64-iso-reconstructed-20261113/psycachy-ubuntu-26.10-desktop-amd64.iso`,
-  SHA-256 `73610dc5848d48a9379177fce5af8bae43cd089a7f4223ec163fa6a96f55be9e`
-  (8,052,146,176 bytes). The user ran the root-only builder. Its log verifies
+- **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO binary was
+  retired on 2026-11-15 after its adjacent `SHA256SUMS` check returned `OK`.
+  Its recorded SHA-256 is
+  `73610dc5848d48a9379177fce5af8bae43cd089a7f4223ec163fa6a96f55be9e`
+  (8,052,146,176 bytes); its manifest and build log remain under
+  `output/amd64-iso-reconstructed-20261113/`. The user ran the root-only builder. Its log verifies
   the signed Canonical base ISO, pinned kernel package pair, local-only 282-
   entry package closure, 280 Ubuntu archive packages, preservation of the
   base EFI files and casper kernel, and the UEFI boot record; the standalone
