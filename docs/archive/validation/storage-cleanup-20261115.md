@@ -84,3 +84,31 @@ destination hashes passed for the combined image and protected AMD64 image;
 2,138,603,520 bytes remain free. No partition-table, VTOYEFI, firmware,
 Apple HDD, or installation-target write occurred. See the
 [Ventoy write record](sp12-combined-ventoy-write-20261115.md).
+
+## Follow-up — local duplicate repository retirement
+
+At 2026-11-15 21:48 UTC, a new read-only review found no safe large VM or
+recovery artifact to retire. The 34 GB allocated QEMU tree contains required
+backing images, recovery fixtures, and unique installer-state evidence; the
+12,715,425,792-byte standalone AMD64 attempt-2 QCOW is explicitly retained as
+unique evidence. Sparse raw placeholders do not account for their apparent
+logical size. No active VM/build process, output-specific mount, or open file
+was present during the review.
+
+The one byte-identical generated tree was
+`output/.unattended-luna-20261111135015Z/arm64-offline-repo/`. It contained
+123 dereferenceable entries: 118 package symlinks to the separately retained
+`output/arm64-offline-20261110b/` tree and five regular metadata files. Every
+entry's SHA-256 and size matched the corresponding file in the retained
+`output/.unattended-luna-20261111210910Z/iso-arm64-refreshed-v4/offline-packages/`
+tree; that tree also retains `packages.tsv`. The old tree had no external
+hardlinks. Only that duplicate directory was removed. Its measured allocated
+size was 148,193,280 bytes, and local free space increased by the same amount
+from 104,610,836,480 to 104,759,029,760 bytes. The retained v4 package
+checksum manifest passed after removal.
+
+The signed AMD64 and ARM64 base ISOs, corrected AMD64 prompt-fix candidate,
+SP12 final51 installer, v4 fallback ISO, private inputs, and evidence trees
+were all kept. No byte-identical full ISO copy was found. The project's
+`.agents` and `.codex` directories are about 1.5 MB and 8 KB respectively and
+remain intact.
