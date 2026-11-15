@@ -16,6 +16,16 @@ The records below preserve dated results and exact historical artifact
 identities. Earlier present-tense wording refers to its recorded snapshot and
 may be superseded; use the private-pilot ledger for current pilot status.
 
+- **2026-11-15 12:50 MST SP12 combined image:** the native ARM64 builder on
+  `cs-sp12` produced the combined final51 live/rescue/opt-in installer
+  candidate, 5,500,940,288 bytes, SHA-256
+  `56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27`.
+  Builder validation and an independent full-content audit passed, including
+  the default non-autoinstall Try/Rescue entry and guarded installer path.
+  Native boot and device behavior are unverified; no USB or installation
+  target was written. The separate Ventoy staging checkpoint is still
+  required. See the [build and audit report](archive/validation/sp12-combined-build-20261115.md).
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is
@@ -640,12 +650,12 @@ verified test scope and keep it a private candidate rather than a release ISO.
   qualified. The separate final51 SP12 live image also remains unqualified for
   native live startup. Older v4, final37, and reconstructed AMD64 artifacts
   remain historical inputs or fallbacks and do not replace these identities.
-- The reviewed SP12 combined rescue/install builder is integrated, but its
-  private media build is still open because the exact private support checkout
-  and machine files are unavailable and the last native builder host had less
-  than the required scratch space. Rebuild only affected images after their
-  remaining implementation/input gates are resolved, then repeat install,
-  boot-without-media, fallback, and protected-disk checks.
+- The SP12 combined rescue/install image is built and content-audited at
+  SHA-256
+  `56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27`.
+  Stage it only after a fresh file-level Ventoy checkpoint and verify its full
+  destination hash. It remains experimental until native live/rescue, external
+  install, boot-without-media, fallback, and protected-disk checks pass.
 - Save final ISO checksums and manifests with the release records. Current ISO
   candidates are ignored local artifacts, not pushed files.
 

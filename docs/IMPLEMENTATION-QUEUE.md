@@ -82,8 +82,9 @@ recovery, and rollback without changing retained VM bases.
 
 ### I-7: Add opt-in installer payload to the private SP12 live builder
 
-**State:** Builder implementation integrated and independently reviewed;
-private media build and qualification remain open. The builder accepts the
+**State:** Builder integrated and independently reviewed; the combined private
+image is built and its contents independently audited. Native runtime and
+physical qualification remain open. The builder accepts the
 separate generic ARM64 offline installer payload with an exact SHA-256,
 selected-kernel pin checks, guarded install entries, target-support copying,
 initramfs regeneration, and final audit checks. The Try/Rescue entry remains
@@ -93,26 +94,34 @@ The reviewed patch SHA-256 is
 `99380ea7052f33043570435acc25771c3c3a053d2f5d234a8c4debd6ebe557cf`. The
 [integration record](archive/validation/sp12-installer-integration-20261114.md)
 and [independent review](archive/validation/artifacts/sp12-installer-integration-20261114/independent-review.md)
-retain the exact evidence. Focused tests and the main-workspace static suite
-pass. No post-snapshot extraction of the 5 GiB installer ISO or combined ISO
-build has run. The exact private support checkout and all four machine files
-are now preserved locally under `phase0-work/private-inputs/` and match their
-configured pins. `cs-sp12` is online through the verified Tailscale SSH peer.
-After targeted cleanup and generated-output pruning its root has
-229,403,607,040 bytes free (213.65 GiB), above the approximate 40.26 GB
-builder, snapshot, and combined-output planning floor. The four source
-worktrees and their dirty source state remain; only generated Kbuild files and
-six uninstalled debug-symbol package archives were removed after review and
-checksum verification. The signed base, candidate audit tree, active package
-archives, and build inputs remain. Finish the exact-input preflight, then build,
-audit, and checksum the combined output. See the
-[2026-11-15 storage cleanup report](archive/validation/storage-cleanup-20261115.md).
+retain the integration evidence. The combined image was built natively on
+`cs-sp12` from the exact final51 package pair, signed Ubuntu base, installer
+ISO, and pinned private support inputs. The builder reported
+`validated=True`; 16 focused builder tests and the main-workspace static
+suite pass. Independent review passed the complete output content audit.
+The image is 5,500,940,288 bytes with SHA-256
+`56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27`.
+Its default Try/Rescue entry has no autoinstall command, the explicit
+installer path is guarded, and generic diagnostics remain separate. The
+build and audit report is
+[here](archive/validation/sp12-combined-build-20261115.md).
+
+The four source worktrees and dirty source state remain; only generated
+Kbuild files and six uninstalled debug-symbol package archives were removed
+after review and checksum verification. The signed base, local private
+support inputs, active package archives, and old live-only image are retained.
+On 2026-11-15 13:05 MST, SP12 root had 185,371,656,192 bytes free after the
+build. Exact duplicated staging inputs and temporary build/audit scratch are
+identified for guarded cleanup. The combined ISO is not yet on Ventoy and has
+not booted on physical SP12.
 
 **Done when:** menu/payload pins and target support hashes verify, unattended
 installation is not possible from the default entry, generic diagnostic and
 guarded installer paths pass focused tests, and the rebuilt private image has
-frozen checksums. The code checks pass; the real support-input build and media
-audit still remain. Physical SP12 qualification remains separate.
+frozen checksums. These software and content-audit checks now pass. The
+remaining work is guarded scratch cleanup, a separately approved Ventoy
+replacement with full read-back hashing, and native SP12 runtime/rescue and
+installed-system qualification.
 
 ### I-8: Fail closed on the AMD64 native CPU target
 

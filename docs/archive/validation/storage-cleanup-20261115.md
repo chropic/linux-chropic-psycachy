@@ -1,7 +1,7 @@
 # Targeted generated-artifact cleanup — 2026-11-15
 
 **As of:** 2026-11-15 18:57 UTC / 11:57 MST
-**Scope:** Retire superseded generated binaries and large generated build outputs while keeping active media, signed inputs, source changes, recovery records, and VM evidence intact. One old, unqualified SP12 candidate binary was retired by the user's cleanup decision; its identity and source records remain. No VM, kernel build, ISO build, hardware write, or firmware change was performed.
+**Scope:** Retire superseded generated binaries and large generated build outputs while keeping active media, signed inputs, source changes, recovery records, and VM evidence intact. One old, unqualified SP12 candidate binary was retired by the user's cleanup decision; its identity and source records remain. The original 18:57 UTC snapshot preceded the later combined ISO build; its no-build/no-write status is historical. Follow-up work is timestamped below.
 
 ## Checks and removals
 
@@ -43,3 +43,43 @@ The signed Ubuntu 26.10 ARM64 input ISO and signature/checksum files, final51 bu
 The user completed both remaining removals after the checksum checks returned `OK`. Read-only follow-up confirmed the two ISO paths are absent, the local `SHA256SUMS`/manifest/build log remain, and the SP12 `.iso.sha256` remains. The separate earlier physical USB image is preserved; its `fdt-fix` ISO sidecar still verifies `OK`.
 
 The post-cleanup check found `/var/tmp/sp12-installer-2610/private-live-v2.l7kr0pl9` absent and no exact-size copy in accessible local or remote paths. The user confirmed that this old private-live-v2 candidate should remain retired; no rebuild was started. Its recorded hash and build provenance remain, but an exact binary cannot be recovered from them.
+
+## Follow-up — exact-copy deduplication and combined-build staging
+
+After the initial storage snapshot, duplicate local package data was
+deduplicated with hardlinks while preserving both pathname trees and their
+checksum sidecars:
+
+- 120 `.deb` files in the old SP12 r2 offline-package tree now share data with
+  exact package copies retained in the final51 or prior r2 package tree.
+- 114 matching `.deb` files in the old v4 fallback closure share data with
+  final51 package copies. Six v4-only packages remain separate.
+- Two byte-identical FAT-delay qualification helper QCOW bases share one data
+  inode. Both paths remain and the recorded remote-tree manifest still
+  verifies; `qemu-img check` passed on both paths, and no QEMU process was
+  running.
+
+The estimated allocated saving is about 1.58 GB; measured local `df` free
+space increased by 1,562,341,376 bytes from the post-cleanup snapshot. At
+2026-11-15 13:05 MST, local `/` had 112,617,009,152 bytes free (104.9 GiB).
+All linked package and QCOW contents were exact SHA-256 matches before
+deduplication. The directories, individual filenames, adjacent package
+metadata, and recovery paths remain available.
+
+The native SP12 combined build and independent content audit then completed;
+see the [build report](sp12-combined-build-20261115.md). At 13:05 MST,
+`cs-sp12` had 185,371,656,192 bytes free (172.6 GiB). The following isolated
+staging inputs and disposable scratch trees remain pending a guarded cleanup
+run: `output/iso-arm64-inputs-20261110`,
+`output/sp12-r2-51-packages-20261113`,
+`output/sp12-r2-installer-20261113-final51`,
+`phase0-work/private-inputs/sp12-r2-live-support-recovery-20261113`,
+`output/sp12-live-build.f983z_87`,
+`output/sp12-live-build.oh629jzq`, and
+`output-audit-20261115`, all under
+`/var/tmp/sp12-r2-combined-20261115`. The final combined ISO, its checksum
+and buildinfo, run script/logs, and the prior live-only ISO remain outside
+this allowlist. Cleanup must verify the final ISO hash, exact paths, absence
+of mounts and active build processes, then remove only these seven trees.
+The remote root-only scratch deletion still needs the user's interactive sudo
+session.
