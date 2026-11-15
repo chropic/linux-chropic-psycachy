@@ -67,19 +67,20 @@ deduplication. The directories, individual filenames, adjacent package
 metadata, and recovery paths remain available.
 
 The native SP12 combined build and independent content audit then completed;
-see the [build report](sp12-combined-build-20261115.md). At 13:05 MST,
-`cs-sp12` had 185,371,656,192 bytes free (172.6 GiB). The following isolated
-staging inputs and disposable scratch trees remain pending a guarded cleanup
-run: `output/iso-arm64-inputs-20261110`,
-`output/sp12-r2-51-packages-20261113`,
-`output/sp12-r2-installer-20261113-final51`,
-`phase0-work/private-inputs/sp12-r2-live-support-recovery-20261113`,
-`output/sp12-live-build.f983z_87`,
-`output/sp12-live-build.oh629jzq`, and
-`output-audit-20261115`, all under
-`/var/tmp/sp12-r2-combined-20261115`. The final combined ISO, its checksum
-and buildinfo, run script/logs, and the prior live-only ISO remain outside
-this allowlist. Cleanup must verify the final ISO hash, exact paths, absence
-of mounts and active build processes, then remove only these seven trees.
-The remote root-only scratch deletion still needs the user's interactive sudo
-session.
+see the [build report](sp12-combined-build-20261115.md). The seven exact
+staging and scratch directories listed above were removed by the user's
+interactive run of the guarded cleanup script. It rechecked the final ISO
+before and after cleanup and verified the host, canonical paths, mounts, and
+processes. Its output reported 38,570,512,384 allocated bytes removed and
+free space rising from 185,371,549,696 to 223,942,037,504 bytes. A subsequent
+read-only check confirmed all seven paths absent, the final ISO, sidecar,
+buildinfo, runner and log still present, and 223,941,722,112 bytes free on
+`cs-sp12`. The old live-only recovery image and its metadata remain in the
+separate `/var/tmp/sp12-r2-final51-build/output` tree.
+
+After a separate user-approved checkpoint, the combined ISO replaced the
+older live-only SP12 file on the existing Ventoy data partition. The full
+destination hashes passed for the combined image and protected AMD64 image;
+2,138,603,520 bytes remain free. No partition-table, VTOYEFI, firmware,
+Apple HDD, or installation-target write occurred. See the
+[Ventoy write record](sp12-combined-ventoy-write-20261115.md).

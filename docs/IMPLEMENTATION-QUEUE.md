@@ -105,23 +105,24 @@ Its default Try/Rescue entry has no autoinstall command, the explicit
 installer path is guarded, and generic diagnostics remain separate. The
 build and audit report is
 [here](archive/validation/sp12-combined-build-20261115.md).
+The user-approved file-level Ventoy replacement and full read-back of the
+combined and protected AMD64 ISOs passed; see the
+[media write report](archive/validation/sp12-combined-ventoy-write-20261115.md).
 
 The four source worktrees and dirty source state remain; only generated
 Kbuild files and six uninstalled debug-symbol package archives were removed
 after review and checksum verification. The signed base, local private
-support inputs, active package archives, and old live-only image are retained.
-On 2026-11-15 13:05 MST, SP12 root had 185,371,656,192 bytes free after the
-build. Exact duplicated staging inputs and temporary build/audit scratch are
-identified for guarded cleanup. The combined ISO is not yet on Ventoy and has
-not booted on physical SP12.
+support inputs, active package archives, and old live-only recovery image are
+retained. The user ran the guarded cleanup for seven exact SP12 staging and
+scratch trees; the remote root now has 223,941,722,112 bytes free. The
+combined image is on Ventoy with both destination read-back checks passed, but
+has not booted on physical SP12.
 
 **Done when:** menu/payload pins and target support hashes verify, unattended
 installation is not possible from the default entry, generic diagnostic and
 guarded installer paths pass focused tests, and the rebuilt private image has
-frozen checksums. These software and content-audit checks now pass. The
-remaining work is guarded scratch cleanup, a separately approved Ventoy
-replacement with full read-back hashing, and native SP12 runtime/rescue and
-installed-system qualification.
+frozen checksums. These software, content-audit, and media-staging checks now
+pass. Native SP12 runtime/rescue and installed-system qualification remain.
 
 ### I-8: Fail closed on the AMD64 native CPU target
 

@@ -26,6 +26,15 @@ may be superseded; use the private-pilot ledger for current pilot status.
   target was written. The separate Ventoy staging checkpoint is still
   required. See the [build and audit report](archive/validation/sp12-combined-build-20261115.md).
 
+- **2026-11-15 13:54 MST SP12 Ventoy staging:** after the user approved the
+  exact file-level checkpoint, the combined ISO replaced the prior SP12
+  live-only file on Ventoy UDisk serial `General_UDisk-0:0`, data-partition
+  UUID `4E21-0000`. The combined image and protected AMD64 ISO both passed
+  full destination read-back hashes. Ventoy retains 2,138,603,520 bytes free;
+  no partition, VTOYEFI, firmware/NVRAM, Apple HDD, or installation-target
+  write occurred. Native SP12 boot and device qualification remain open. See
+  the [write report](archive/validation/sp12-combined-ventoy-write-20261115.md).
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is
@@ -647,15 +656,17 @@ verified test scope and keep it a private candidate rather than a release ISO.
   section 2.2. The SP12 final51 installer identity and evidence boundary are
   recorded in the [private-pilot qualification ledger](PRIVATE-PILOT-QUALIFICATION.md);
   its generic-QEMU install powered off cleanly, but detached boot has not been
-  qualified. The separate final51 SP12 live image also remains unqualified for
-  native live startup. Older v4, final37, and reconstructed AMD64 artifacts
-  remain historical inputs or fallbacks and do not replace these identities.
+  qualified. The SP12 combined final51 live/rescue/opt-in installer image is
+  built, independently audited, and staged on Ventoy with both full
+  destination hashes passing; native live startup remains unqualified. Older
+  v4, final37, and reconstructed AMD64 artifacts remain historical inputs or
+  fallbacks and do not replace these identities.
 - The SP12 combined rescue/install image is built and content-audited at
   SHA-256
   `56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27`.
-  Stage it only after a fresh file-level Ventoy checkpoint and verify its full
-  destination hash. It remains experimental until native live/rescue, external
-  install, boot-without-media, fallback, and protected-disk checks pass.
+  Its approved file-level Ventoy stage and full read-back checks passed. It
+  remains experimental until native live/rescue, external install,
+  boot-without-media, fallback, and protected-disk checks pass.
 - Save final ISO checksums and manifests with the release records. Current ISO
   candidates are ignored local artifacts, not pushed files.
 
