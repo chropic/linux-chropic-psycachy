@@ -10,6 +10,9 @@
 
 **Scope:** continue the private B550I AMD64 and SP12 ARM64 pilots from the 2026-11-14 handoff. This report is a status record, not a physical-write checkpoint.
 
+This report's initial status tables describe the 10:03 MST snapshot; the
+follow-up section at the end records later completed work and current gates.
+
 The report's SHA-256 is recorded in the adjacent
 `supervised-continuation-20261115.sha256` sidecar.
 
@@ -167,3 +170,26 @@ read-only, and no RPMB provisioning or data write occurred.
 
 Both pilots remain open. No result here authorizes an install, firmware
 change, cleanup deletion, or media replacement.
+
+## Follow-up — corrected AMD64 lifecycle ISO (2026-11-15 21:21 UTC)
+
+The activation prompt fix is now embedded in a fresh local candidate:
+`output/amd64-iso-lifecycle-20261115-promptfix/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+8,052,277,248 bytes, SHA-256
+`1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`.
+The build used the Canonical-signed base, the pinned `znver3` package pair,
+and the retained 282-package closure; 280 Ubuntu packages passed authenticated
+archive-index checks. The build ran as namespace root without host-root access.
+
+Local validation and independent review passed the full package and helper
+manifests, embedded blank-input fail-closed behavior, pin/package identity,
+unchanged signed-base EFI files and casper kernel, and UEFI image bytes. The
+build record is in
+[amd64-lifecycle-iso-promptfix-20261115.md](amd64-lifecycle-iso-promptfix-20261115.md).
+Current local `/` free space is 104,519,655,424 bytes (97.3 GiB), 17.3 GiB
+above the 80 GiB reserve. The previous 12,715,630,592-byte full target
+allocation would leave about 5.5 GiB above reserve. The exact-hash
+network-disabled KVM boot smoke is pending supervised sudo access; no VM
+installation or physical-media replacement has occurred. The corrected image
+is not on Ventoy. Keep B550I lifecycle and external qualification ahead of
+SP12 native boot in the hardware sequence.

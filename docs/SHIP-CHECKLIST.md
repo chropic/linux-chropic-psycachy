@@ -35,6 +35,19 @@ may be superseded; use the private-pilot ledger for current pilot status.
   write occurred. Native SP12 boot and device qualification remain open. See
   the [write report](archive/validation/sp12-combined-ventoy-write-20261115.md).
 
+- **2026-11-15 14:21 MST AMD64 corrected lifecycle ISO:** the fixed
+  activation helper is embedded in a fresh local image, 8,052,277,248 bytes,
+  SHA-256 `1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`.
+  The signed base, pinned `znver3` kernel pair, authenticated 280-package
+  Ubuntu closure, all 282 embedded package hashes, helper manifest, UEFI
+  image, and unchanged base EFI/live kernel passed an independent audit.
+  Blank promotion-path input exits before the trial helper. The new hash is
+  not staged on Ventoy or boot-tested yet; the earlier pre-fix USB file remains
+  unchanged. Current free space is 17.3 GiB above the 80 GiB reserve, and a
+  full previous-size VM target would leave about 5.5 GiB above it. No physical
+  media, Apple HDD, firmware, or install-target write occurred. See the
+  [prompt-fix build report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is

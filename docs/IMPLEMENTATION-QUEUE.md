@@ -15,18 +15,21 @@ and ship checklist.
 
 ### I-5: Integrate AMD64 activation with the kernel-trial state machine
 
-**State:** Lifecycle implementation integrated after independent review at
-baseline `bb3fc379862271bcfdd8715564990f1073b7df83`; focused tests and static
-checks pass. The lifecycle candidate ISO is built and its checksum and selected
-payloads were independently reviewed. A bounded network-disabled UEFI/KVM
-smoke reached the live desktop's guarded disk selector and stopped without
-selecting a disk or erase confirmation. No disposable installation or
-activation/reboot/rollback trial or target hardware qualification was run.
-Full installation is deferred until storage can preserve the 80 GiB reserve.
-See the [implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
-[ISO build record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
-and [boot record](archive/validation/amd64-lifecycle-iso-liveboot-20261114.md).
-
+**State:** Lifecycle implementation and the fail-closed blank-path fix are
+integrated after independent review. Focused source tests and static checks
+passed. The corrected prompt is embedded in a new 8,052,277,248-byte ISO,
+SHA-256 `1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`.
+The signed base, pinned package pair, all 282 repository files, helper
+manifest, UEFI image, base EFI/live kernel, and embedded blank-input behavior
+passed an independent audit. A network-disabled UEFI/KVM smoke of this exact
+hash is pending supervised local KVM access; the older pre-fix smoke does not
+transfer. No disposable installation or activation/reboot/rollback trial or
+target-hardware qualification has run. Current free space is 17.3 GiB above
+the 80 GiB reserve; monitor growth through each VM scenario. See the
+[implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
+[prior ISO record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
+[new prompt-fix build and audit](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md),
+and [prior boot record](archive/validation/amd64-lifecycle-iso-liveboot-20261114.md).
 The implementation now provides a unified `prepare -> candidate boot ->
 acknowledge -> promote` flow, explicit first-install and replacement records,
 fallback preservation, package/signing identity separation, runtime module
@@ -38,14 +41,12 @@ Keep the userspace timeout limitation for pre-userspace hangs documented.
 Independent review found that the embedded activation frontend's
 `Reviewed health attestation path (blank to stop)` prompt substituted the
 default path for blank input. Although a fresh unreviewed template is rejected
-by the helper, completing that file while the prompt waits can make Enter
-promote it. The source fix now fails closed on blank and has an executable
-frontend regression for blank and explicit paths. This changes an embedded
-ISO payload; the currently staged ISO is the pre-fix candidate and must not be
-used for lifecycle qualification or promotion. Rebuild, independently audit,
-freeze, and smoke-test a new AMD64 ISO when storage permits. The old ISO's
-selector smoke does not transfer to the changed artifact.
-
+by the helper, completing that file while the prompt waits could make Enter
+promote it. The source now fails closed on blank and has executable regressions
+for blank and explicit paths. The old ISO on Ventoy embeds the pre-fix prompt
+and remains ineligible for lifecycle qualification. The corrected local image
+has passed the independent content audit; complete the exact-hash VM boot
+smoke, then run the disposable lifecycle before any physical rehearsal.
 **Remaining:** run the exact candidate through a disposable UEFI installation,
 acknowledgement, promotion, and rollback sequence with the fallback preserved,
 then run exact-candidate B550I checks. These remain separate from the passing
