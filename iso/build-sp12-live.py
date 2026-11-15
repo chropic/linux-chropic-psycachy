@@ -1255,9 +1255,9 @@ def build(args):
             require(hashlib.sha256(data).hexdigest() == expected,
                     'Private support payload differs in live layer: ' + relative)
             if installer_iso:
-                target_support = audit / 'psycachy/private-support' / relative
-                require(target_support.is_file() and not target_support.is_symlink()
-                        and sha(target_support) == expected,
+                target_support_file = audit / 'psycachy/private-support' / relative
+                require(target_support_file.is_file() and not target_support_file.is_symlink()
+                        and sha(target_support_file) == expected,
                         'Private target support payload differs in final ISO: ' + relative)
         if installer_iso:
             require(sha(audit / 'psycachy/install-private-support.sh') ==
