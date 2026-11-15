@@ -98,12 +98,14 @@ pass. No post-snapshot extraction of the 5 GiB installer ISO or combined ISO
 build has run. The exact private support checkout and all four machine files
 are now preserved locally under `phase0-work/private-inputs/` and match their
 configured pins. `cs-sp12` is online through the verified Tailscale SSH peer.
-After targeted cleanup its root has 37,314,920,448 bytes free (34.75 GiB),
-about 2.94 GB below the approximate 40.26 GB builder, snapshot, and
-combined-output planning floor before additional margin. Superseded output
-binaries and one exact duplicate squashfs were retired; the signed base,
-candidate audit tree, and build inputs remain. The user also completed both
-remaining checksum-verified ISO removals. No combined build occurred. See the
+After targeted cleanup and generated-output pruning its root has
+229,403,607,040 bytes free (213.65 GiB), above the approximate 40.26 GB
+builder, snapshot, and combined-output planning floor. The four source
+worktrees and their dirty source state remain; only generated Kbuild files and
+six uninstalled debug-symbol package archives were removed after review and
+checksum verification. The signed base, candidate audit tree, active package
+archives, and build inputs remain. Finish the exact-input preflight, then build,
+audit, and checksum the combined output. See the
 [2026-11-15 storage cleanup report](archive/validation/storage-cleanup-20261115.md).
 
 **Done when:** menu/payload pins and target support hashes verify, unattended

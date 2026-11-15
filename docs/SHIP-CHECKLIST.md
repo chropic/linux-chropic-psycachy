@@ -60,17 +60,20 @@ may be superseded; use the private-pilot ledger for current pilot status.
   continuation report](archive/validation/supervised-continuation-20261115.md)
   and [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
-- **2026-11-15 18:33 UTC storage cleanup:** retired superseded local and remote
-  ISO copies, a transfer archive with an exact extracted-tree copy, one
-  extracted QEMU source tree, and one byte-identical extracted squashfs copy.
-  The user completed both remaining checksum-verified ISO removals; their
-  manifests, build records, and sidecar remain. Retained the signed ARM64
-  base, active final51 artifacts, Ventoy contents, full audit tree, metadata,
-  recovery inputs, and historical QCOW evidence. The old private-live-v2
-  binary remains retired by user choice after no exact copy was found. Local
-  free space is 103.90 GiB (23.90 GiB above reserve, 16.10 GiB below target);
-  SP12 has 34.75 GiB, about 2.94 GB below the planning floor. No build was
-  started. See the [storage cleanup report](archive/validation/storage-cleanup-20261115.md).
+- **2026-11-15 18:57 UTC storage cleanup:** retired superseded ISO copies, a
+  transfer archive with an exact extracted-tree copy, one extracted QEMU source
+  tree, and one byte-identical extracted squashfs copy. The user completed both
+  remaining checksum-verified ISO removals; their records and sidecars remain.
+  On SP12, generated Kbuild output was cleaned from four source worktrees while
+  preserving their dirty source state, configs, signing keys, and runtime
+  package archives. Six uninstalled debug-symbol package archives were removed
+  after SHA-256 checks; `.changes`/`.buildinfo` records remain. Retained the
+  signed ARM64 base, active final51 media, Ventoy contents, full audit tree,
+  recovery inputs, and historical QCOW evidence. The old private-live-v2 binary
+  remains retired by user choice. Local free space is 103.43 GiB (23.43 GiB
+  above reserve, 16.57 GiB below target); SP12 has 213.65 GiB, about 189 GB
+  above the combined-build planning floor. No build has started; exact-input
+  preflight is underway. See the [storage cleanup report](archive/validation/storage-cleanup-20261115.md).
 
 - **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO binary was
   retired on 2026-11-15 after its adjacent `SHA256SUMS` check returned `OK`.

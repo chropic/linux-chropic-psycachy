@@ -1,7 +1,7 @@
 # Targeted generated-artifact cleanup — 2026-11-15
 
-**As of:** 2026-11-15 18:33 UTC / 11:33 MST
-**Scope:** Retire selected superseded generated binaries and redundant staging copies while keeping active media, signed inputs, recovery records, and VM evidence intact. One old, unqualified SP12 candidate binary was retired by the user's cleanup decision; its identity and source records remain. No VM, build, hardware write, or firmware change was performed.
+**As of:** 2026-11-15 18:57 UTC / 11:57 MST
+**Scope:** Retire superseded generated binaries and large generated build outputs while keeping active media, signed inputs, source changes, recovery records, and VM evidence intact. One old, unqualified SP12 candidate binary was retired by the user's cleanup decision; its identity and source records remain. No VM, kernel build, ISO build, hardware write, or firmware change was performed.
 
 ## Checks and removals
 
@@ -20,6 +20,8 @@ The following generated copies were retired after checking their identity:
 | SP12 | `/var/tmp/sp12-installer-2610/output/sp12-ubuntu-26.10-arm64-private-live-v2.iso` | 4,971,847,680 bytes; sidecar check passed before removal; SHA-256 `d550c05575196069bd458f3a97c04acfc6660ceb4cdb5e7b7dab37879b6b6ec5` | Sidecar, buildinfo, source, signed base ISO, and candidate records remain. Earlier storage review marked it as a unique unqualified candidate; after the root-only temp path was found absent and no exact copy was located, the user chose to leave this old iteration retired rather than rebuild it. Its exact bytes are no longer retained. The experimental ISO audit tree is not a substitute. |
 | SP12 | `/var/tmp/sp12-live-output-20261112/sp12-ubuntu-26.10-arm64-live-private.iso` | 4,810,289,152 bytes; sidecar check returned `OK`; SHA-256 `dfd9c3e081a002a8a9ad572750d4998da06255dd7a51cb223b5271f07b210523` | User removed this pre-final51 test ISO; its `.iso.sha256` remains. The separate earlier physical USB image is preserved. |
 | SP12 | `/var/tmp/sp12-installer-2610/audit/minimal.squashfs` | 3,546,411,008 bytes; SHA-256 `dbd668a75a974192d29c9bc82671084533e0b266d8b67d30b572d4424f36b7dd` | Exact byte match to `candidate-audit/tree/casper/minimal.squashfs`; retained the complete candidate audit tree and the smaller audit records. |
+| SP12 | Generated Kbuild outputs in `/home/charlie/src/linux-7.2-final-sp12`, `/home/charlie/src/linux-7.2-sp12`, `/home/charlie/src/sp12-extra-test`, and `/home/charlie/src/sp12-panel-worktree` | Sequential `ARCH=arm64 make -j1 clean` after dry-run and independent review; combined allocated tree size fell from 192,715,358,208 B to 11,225,079,808 B | All four dirty checkouts remain. Tracked-diff and untracked-source fingerprints are unchanged; `.config`, signing keys, `.orig` source backups, and package archives remain. |
+| SP12 | Six `/home/charlie/src/linux-image-*-dbg_*.deb` debug-symbol packages | All six exact SHA-256 checks returned `OK` before removal; 10,598,694,912 allocated bytes total | Removed the uninstalled Linux 7.2/7.2-rc7 debug packages. Their `.changes` and `.buildinfo` records remain, along with every non-debug image and header package. |
 
 The cleanup also pruned nine stale Git worktree registrations whose target paths no longer existed. No existing worktree or branch was removed; modified worktrees were left intact.
 
@@ -27,16 +29,16 @@ The cleanup also pruned nine stale Git worktree registrations whose target paths
 
 | Host | Before | After | Change |
 | --- | ---: | ---: | ---: |
-| Local `/` | 86,578,343,936 B free | 111,558,193,152 B free | +24,979,849,216 B |
-| SP12 `/` and `/var/tmp` | 19,247,431,680 B free | 37,314,920,448 B free | +18,067,488,768 B |
+| Local `/` | 86,578,343,936 B free | 111,054,667,776 B free | +24,476,323,840 B |
+| SP12 `/` and `/var/tmp` | 19,247,431,680 B free | 229,403,607,040 B free | +210,156,175,360 B |
 
-At the 18:33 UTC follow-up, local free space is 103.90 GiB: 23.90 GiB above the 80 GiB reserve and 16.10 GiB below the 120 GiB target. Repeating the recorded 12,715,630,592-byte disposable target allocation would leave about 12.05 GiB above the reserve. SP12 has 34.75 GiB free, about 2.94 GB below the current approximately 40.26 GB installer-snapshot/output planning floor, before extra build margin. Do not start that combined build on this measurement.
+At 18:57 UTC, local free space is 103.43 GiB: 23.43 GiB above the 80 GiB reserve and 16.57 GiB below the 120 GiB target. Repeating the recorded 12,715,630,592-byte disposable target allocation would leave about 11.58 GiB above the reserve. SP12 has 213.65 GiB free, about 189 GB above the approximately 40.26 GB installer-snapshot/output planning floor. Complete the exact-input preflight before starting the combined build; no build was started during cleanup.
 
-The local before/after free-space delta is the measured `df` change. The first unprivileged cleanup delta differed by 178,138,125 bytes from the sum of the listed file lengths and extracted-tree allocation; per-file allocated bytes were not captured for every deleted item, so the file-length sum is not a reclaim estimate. The 18:33 readings followed the two user-supervised ISO removals; intermediate readings were recorded during cleanup and documentation work.
+The capacity-table deltas are measured `df` changes from the initial cleanup snapshots, not sums of file lengths. The first local unprivileged-cleanup delta differed by 178,138,125 bytes from the listed file lengths and extracted-tree allocation; file lengths are not a reclaim estimate. For the four SP12 trees, `du` showed a combined 192,715,358,208 B before and 11,225,079,808 B after; the `df` increase during those cleans was 181,490,237,440 B, within 40,960 B of the `du` delta. The six debug-package unlink operations freed another 10,598,662,144 B by `df`; their allocated block total was 10,598,694,912 B.
 
 ## Preserved artifacts and completed supervised cleanup
 
-The signed Ubuntu 26.10 ARM64 input ISO and signature/checksum files, final51 builder workspace and media, current Ventoy files, v4 fallback ISO, complete audit tree extracted from the experimental image, recovery inputs/evidence, extracted transfer evidence, source archive/signature/key, and historical installer QCOW evidence remain. In particular, the standalone AMD64 attempt-2 QCOW remains because it is unique historical installer-state evidence. The modified Codex worktrees also remain intact.
+The signed Ubuntu 26.10 ARM64 input ISO and signature/checksum files, final51 builder workspace and media, current Ventoy files, v4 fallback ISO, complete audit tree extracted from the experimental image, recovery inputs/evidence, extracted transfer evidence, source archive/signature/key, runtime image/header package archives, and historical installer QCOW evidence remain. In particular, the standalone AMD64 attempt-2 QCOW remains because it is unique historical installer-state evidence. The four SP12 source worktrees remain at their original commits with their dirty tracked and untracked source unchanged; only generated Kbuild outputs were cleaned.
 
 The user completed both remaining removals after the checksum checks returned `OK`. Read-only follow-up confirmed the two ISO paths are absent, the local `SHA256SUMS`/manifest/build log remain, and the SP12 `.iso.sha256` remains. The separate earlier physical USB image is preserved; its `fdt-fix` ISO sidecar still verifies `OK`.
 
