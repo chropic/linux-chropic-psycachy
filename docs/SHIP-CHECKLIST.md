@@ -49,15 +49,26 @@ may be superseded; use the private-pilot ledger for current pilot status.
   smoke-tested before lifecycle use. The staged SP12 final51 file is verified
   live media only: its buildinfo has no installer ISO identity and predates
   the opt-in installer payload, so no combined image is qualified. The pinned
-  support inputs are verified locally; `cs-sp12` is offline and its last
-  capacity measurement is stale. Local free space is 80.62 GiB, only 0.62 GiB
-  above the reserve; no cleanup deletion was certified, and no VM/build
-  started. A local extracted QEMU 11.0.3 binary is runnable, but the current
+  support inputs are verified locally; `cs-sp12` is online through the verified
+  Tailscale SSH peer with 30.27 GiB free after targeted cleanup. Local free
+  space is 96.40 GiB, 16.40 GiB above the reserve and 23.60 GiB below the
+  120 GiB target. The remote builder remains about 7.75 GB below the current
+  installer-snapshot/output planning floor. A local extracted QEMU 11.0.3 binary is runnable, but the current
   user lacks direct KVM group access. The current read-only firmware boot
   order differs from the previous inventory and is unreconciled. No physical
   disk write occurred; both pilots remain open. See the [2026-11-15
   continuation report](archive/validation/supervised-continuation-20261115.md)
   and [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
+
+- **2026-11-15 18:26 UTC storage cleanup:** retired obsolete local ISO copies,
+  a transfer archive with an exact extracted-tree copy, one extracted QEMU
+  source tree, two old remote installer ISO outputs, and one byte-identical
+  extracted squashfs copy. Retained the signed ARM64 base, active final51
+  artifacts, Ventoy contents, full audit tree, metadata, recovery inputs, and
+  historical QCOW evidence. The old private-live-v2 binary was left retired
+  after the user confirmed its candidate record and source were sufficient.
+  Local and remote free space and the remaining
+  privileged cleanup are recorded in the [storage cleanup report](archive/validation/storage-cleanup-20261115.md).
 
 - **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO is
   `output/amd64-iso-reconstructed-20261113/psycachy-ubuntu-26.10-desktop-amd64.iso`,
