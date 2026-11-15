@@ -119,11 +119,17 @@ records = {}
 for deb in Path(sys.argv[1]).glob("*.deb"):
     result = subprocess.run(["dpkg-deb", "-f", str(deb), "Package", "Version"],
                             check=True, capture_output=True, text=True)
-    fields = result.stdout.splitlines()
-    if len(fields) != 2:
+    fields = {}
+    for line in result.stdout.splitlines():
+        key, separator, value = line.partition(": ")
+        if separator:
+            fields[key] = value
+    package, version = fields.get("Package"), fields.get("Version")
+    if not package or not version:
         continue
-    package, version = fields
     if re.fullmatch(r"nvidia-(?:driver|dkms)-[A-Za-z0-9.+-]+-open", package):
+        if package in records:
+            raise SystemExit(f"offline repository contains duplicate NVIDIA package: {package}")
         with deb.open("rb") as source:
             digest = hashlib.file_digest(source, "sha256").hexdigest()
         records[package] = {"version": version, "filename": deb.name,
