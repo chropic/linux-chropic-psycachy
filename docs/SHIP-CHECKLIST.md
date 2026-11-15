@@ -26,7 +26,7 @@ may be superseded; use the private-pilot ledger for current pilot status.
   See the [execution report](archive/validation/bounded-refresh-and-readiness-20261114.md)
   and current [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
-- **2026-11-15 approved USB refresh:** the user authorized replacing both
+- **2026-11-15 02:11 UTC approved USB refresh:** the user authorized replacing both
   existing ISO files on the separate Ventoy USB. The AMD64 lifecycle ISO and
   SP12 final51 live image were copied and their complete destination SHA-256
   hashes matched the source identities. The user later reported booting the
@@ -38,6 +38,26 @@ may be superseded; use the private-pilot ledger for current pilot status.
   qualification and physical installation remain open.
   See the [USB write record](archive/validation/artifacts/usb-ventoy-inventory-20261114/write-record.md)
   and current [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
+
+- **2026-11-15 17:15 UTC supervised continuation:** the AMD64 target guard is
+  integrated and passes 10 focused tests plus the static suite; it does not
+  rebuild the existing package pair or produce Kbuild command evidence.
+  Independent review found and fixed a blank-attestation-path promotion
+  mismatch in `activate.sh`; its two frontend regressions and the static suite
+  pass. Since that script is embedded in the ISO, the Ventoy AMD64 file is now
+  a pre-fix artifact and must be rebuilt, independently audited, and
+  smoke-tested before lifecycle use. The staged SP12 final51 file is verified
+  live media only: its buildinfo has no installer ISO identity and predates
+  the opt-in installer payload, so no combined image is qualified. The pinned
+  support inputs are verified locally; `cs-sp12` is offline and its last
+  capacity measurement is stale. Local free space is 80.62 GiB, only 0.62 GiB
+  above the reserve; no cleanup deletion was certified, and no VM/build
+  started. A local extracted QEMU 11.0.3 binary is runnable, but the current
+  user lacks direct KVM group access. The current read-only firmware boot
+  order differs from the previous inventory and is unreconciled. No physical
+  disk write occurred; both pilots remain open. See the [2026-11-15
+  continuation report](archive/validation/supervised-continuation-20261115.md)
+  and [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
 - **AMD64 ISO and Secure Boot:** the reconstructed candidate ISO is
   `output/amd64-iso-reconstructed-20261113/psycachy-ubuntu-26.10-desktop-amd64.iso`,

@@ -4,6 +4,14 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 export LC_ALL=C
 die() { echo "PsyCachy activation: $*" >&2; exit 1; }
+request_promotion() {
+  local attestation
+  read -r -p 'Reviewed health attestation path (blank to stop): ' attestation
+  [[ -n $attestation ]] || return 1
+  "$trial" promote --attestation "$attestation"
+}
+
+main() {
 (( EUID == 0 )) || die 'run as root in an interactive terminal'
 [[ -t 0 && -t 1 ]] || die 'an interactive terminal is required'
 [[ -f /var/lib/psycachy/installer-packages-ready ]] || die 'installer package setup is incomplete'
@@ -88,9 +96,7 @@ case $trial_state in
     fi
     [[ $action == TEMPLATE ]] || die 'choose rollback or promotion review'
     "$trial" attestation-template
-    read -r -p 'Reviewed health attestation path (blank to stop): ' attestation
-    [[ -n $attestation ]] || attestation=/var/lib/psycachy/attestations/health-attestation.json
-    "$trial" promote --attestation "$attestation"
+    request_promotion || die 'promotion was stopped; provide a reviewed health attestation path'
     echo 'Candidate promoted. The fallback remains available; rollback is still supported.'
     ;;
   promoted)
@@ -101,3 +107,8 @@ case $trial_state in
     ;;
   *) die "trial state is $trial_state; inspect status and resolve it before activation" ;;
 esac
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

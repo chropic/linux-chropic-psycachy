@@ -15,6 +15,7 @@ readonly DEPENDENCIES_PATCH_SHA256=d938c88ddd54d285b44b0b0a7c352e0d77f568343edde
 target=b550i-amd64
 target_seen=false
 dry_run=false
+verify_cpu_target_only=false
 remaining=()
 while (($#)); do
   case $1 in
@@ -22,6 +23,7 @@ while (($#)); do
       (($# >= 2)) || { echo 'error: --target requires a value' >&2; exit 1; }
       $target_seen && { echo 'error: --target may be specified only once' >&2; exit 1; }
       target=$2; target_seen=true; shift 2 ;;
+    --verify-cpu-target) verify_cpu_target_only=true; shift ;;
     --dry-run) dry_run=true; shift ;;
     *) remaining+=("$1"); shift ;;
   esac
@@ -37,8 +39,81 @@ output_seen=false
 prepare_only=false
 version_seen=false
 die() { echo "error: $*" >&2; exit 1; }
+verify_amd64_cpu_target() {
+  local pin="$root/config/amd64-iso-kernel.json" native_output
+
+  expected_cpu_target=$(python3 - "$pin" <<'PY'
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        pin = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"invalid AMD64 kernel pin: {exc}")
+
+if not isinstance(pin, dict) or pin.get("architecture") != "amd64":
+    raise SystemExit("AMD64 kernel pin must declare architecture=amd64")
+target = pin.get("cpu_target")
+if not isinstance(target, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.+-]{0,63}", target):
+    raise SystemExit("AMD64 kernel pin has a missing or malformed cpu_target")
+print(target)
+PY
+  ) || die 'could not read a valid cpu_target from the AMD64 kernel pin'
+
+  native_output=$(clang-22 -march=native -### -E -x c /dev/null 2>&1) \
+    || die 'Clang failed to detect its effective native target'
+  detected_cpu_target=$(python3 - "$native_output" <<'PY'
+import shlex
+import sys
+
+targets = []
+for line in sys.argv[1].splitlines():
+    if "-target-cpu" not in line:
+        continue
+    try:
+        words = shlex.split(line)
+    except ValueError as exc:
+        raise SystemExit(f"malformed Clang -### output: {exc}")
+    for index, word in enumerate(words):
+        if word == "-target-cpu":
+            if index + 1 >= len(words):
+                raise SystemExit("Clang emitted -target-cpu without a value")
+            targets.append(words[index + 1])
+
+if len(targets) != 1:
+    raise SystemExit(f"expected one effective -target-cpu value, found {len(targets)}")
+target = targets[0]
+if not target or any(char.isspace() for char in target):
+    raise SystemExit("Clang emitted a malformed target CPU")
+print(target)
+PY
+  ) || die 'Clang native target detection was missing, ambiguous, or malformed'
+
+  [[ $detected_cpu_target == "$expected_cpu_target" ]] || \
+    die "Clang native target '$detected_cpu_target' does not match pinned cpu_target '$expected_cpu_target'"
+}
+verify_native_cpu_config() {
+  local config=$1 native_count generic_count
+  native_count=$(grep -Ec '^(CONFIG_X86_NATIVE_CPU=y|# CONFIG_X86_NATIVE_CPU is not set)$' "$config" || true)
+  generic_count=$(grep -Ec '^(CONFIG_GENERIC_CPU=y|# CONFIG_GENERIC_CPU is not set)$' "$config" || true)
+  [[ $native_count == 1 ]] && grep -qx 'CONFIG_X86_NATIVE_CPU=y' "$config" \
+    || die 'resolved config must enable CONFIG_X86_NATIVE_CPU exactly once'
+  [[ $generic_count == 1 ]] && grep -qx '# CONFIG_GENERIC_CPU is not set' "$config" \
+    || die 'resolved config must disable CONFIG_GENERIC_CPU exactly once'
+}
+if $verify_cpu_target_only; then
+  [[ $target == b550i-amd64 ]] || die '--verify-cpu-target applies only to b550i-amd64'
+  $dry_run && die '--verify-cpu-target cannot be combined with --dry-run'
+  (( ${#remaining[@]} == 0 )) || die "unsupported argument with --verify-cpu-target: ${remaining[*]}"
+  verify_amd64_cpu_target
+  printf 'cpu_target_expected=%s\ncpu_target_detected=%s\n' \
+    "$expected_cpu_target" "$detected_cpu_target"
+  exit 0
+fi
 usage() {
-  echo "Usage: ./build.sh [--target b550i-amd64|sp121-arm64|all] [--dry-run] [7.3.1] [--prepare-only] [--jobs N] [--output-dir PATH]"
+  echo "Usage: ./build.sh [--target b550i-amd64|sp121-arm64|all] [--dry-run] [--verify-cpu-target] [7.3.1] [--prepare-only] [--jobs N] [--output-dir PATH]"
 }
 while (($#)); do
   case $1 in
@@ -148,6 +223,7 @@ ld_info=$("$source_dir/scripts/ld-version.sh" ld.lld-22) || die 'linker does not
 [[ $cc_info =~ ^Clang[[:space:]]22[0-9]{4}$ ]] || die "expected Clang 22, got: $cc_info"
 [[ $ld_info =~ ^LLD[[:space:]]22[0-9]{4}$ ]] || die "expected LLD 22, got: $ld_info"
 echo "Kernel tool checks passed: $cc_info; $ld_info"
+verify_amd64_cpu_target
 for patch in dkms-clang.patch headers-config.patch ubuntu-package-dependencies.patch; do
   git -C "$source_dir" apply --check --no-index "$root/config/patches/$patch"
   git -C "$source_dir" apply --no-index "$root/config/patches/$patch"
@@ -162,6 +238,7 @@ cp "$work/normalized.config" "$output_dir/cachyos-$KERNEL_VERSION-normalized.con
 cp "$root/config/psycachy.fragment" "$work/psycachy.fragment"
 (cd "$source_dir" && scripts/kconfig/merge_config.sh -m .config "$work/psycachy.fragment")
 make -C "$source_dir" LLVM=-22 olddefconfig
+verify_native_cpu_config "$source_dir/.config"
 cp "$source_dir/.config" "$output_dir/psycachy-$KERNEL_VERSION.config"
 python3 "$root/tools/config_diff.py" --base "$output_dir/cachyos-$KERNEL_VERSION-normalized.config" --fragment "$root/config/psycachy.fragment" \
   --final "$output_dir/psycachy-$KERNEL_VERSION.config" --report "$output_dir/config-diff.json" \
@@ -173,6 +250,8 @@ python3 "$root/tools/audit-release-policy.py" --arch amd64 --output "$output_dir
   printf 'source_tree_sha256='; cat "$output_dir/source-tree.sha256"
   printf 'policy_fragment_sha256='; sha256sum "$root/config/psycachy.fragment" | cut -d ' ' -f 1
   echo 'cpu_target=native; packages are specific to the build CPU'
+  echo "cpu_target_expected=$expected_cpu_target"
+  echo "cpu_target_detected=$detected_cpu_target"
   clang-22 --version | head -n 1
   rustc --version
   ld.lld-22 --version

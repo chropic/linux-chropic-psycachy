@@ -35,6 +35,17 @@ The health attestation is unsigned and root-controlled: it is an auditable
 operator workflow record, not cryptographic proof of independent approval.
 Keep the userspace timeout limitation for pre-userspace hangs documented.
 
+Independent review found that the embedded activation frontend's
+`Reviewed health attestation path (blank to stop)` prompt substituted the
+default path for blank input. Although a fresh unreviewed template is rejected
+by the helper, completing that file while the prompt waits can make Enter
+promote it. The source fix now fails closed on blank and has an executable
+frontend regression for blank and explicit paths. This changes an embedded
+ISO payload; the currently staged ISO is the pre-fix candidate and must not be
+used for lifecycle qualification or promotion. Rebuild, independently audit,
+freeze, and smoke-test a new AMD64 ISO when storage permits. The old ISO's
+selector smoke does not transfer to the changed artifact.
+
 **Remaining:** run the exact candidate through a disposable UEFI installation,
 acknowledgement, promotion, and rollback sequence with the fallback preserved,
 then run exact-candidate B550I checks. These remain separate from the passing
@@ -46,7 +57,11 @@ software tests and build evidence in the
 **State:** Open; the first disposable r2 changed-release attempt was
 independently reviewed and correctly classified incomplete. It reached the
 guest login prompt without an explicitly authorized test credential or seed;
-no dpkg transition ran. The retained report and full output bundle are under
+no dpkg transition ran, and QEMU ended after host SIGTERM with clean guest
+shutdown unconfirmed. The 2026-11-15 independent evidence review verified
+all 34 nonempty entries in the output manifest (older historical review text
+says 33) without changing the incomplete classification. The retained report
+and full output bundle are under
 `docs/archive/validation/artifacts/arm64-update-reproducer-20261114/`. Existing
 postinst and initramfs hooks delegate to
 `sp12-sync-boot`, whose persistent boot configuration has not been shown to
@@ -80,15 +95,33 @@ The reviewed patch SHA-256 is
 and [independent review](archive/validation/artifacts/sp12-installer-integration-20261114/independent-review.md)
 retain the exact evidence. Focused tests and the main-workspace static suite
 pass. No post-snapshot extraction of the 5 GiB installer ISO or combined ISO
-build has run. The exact private support checkout and four machine files are
-unavailable, and the last recorded `cs-sp12` free-space measurement was below
-the builder's 24 GiB minimum.
+build has run. The exact private support checkout and all four machine files
+are now preserved locally under `phase0-work/private-inputs/` and match their
+configured pins. The `cs-sp12` peer is currently offline; its last verified
+root-free measurement is stale and below the builder's 24 GiB minimum, plus
+installer snapshot and output capacity. No build or remote cleanup occurred.
 
 **Done when:** menu/payload pins and target support hashes verify, unattended
 installation is not possible from the default entry, generic diagnostic and
 guarded installer paths pass focused tests, and the rebuilt private image has
 frozen checksums. The code checks pass; the real support-input build and media
 audit still remain. Physical SP12 qualification remains separate.
+
+### I-8: Fail closed on the AMD64 native CPU target
+
+**State:** Implemented and independently reviewed on the continuation branch;
+integrated source/tests pass focused and static checks. The AMD64 builder now
+compares Clang's effective `-march=native` target with the existing pin's
+`cpu_target` before compilation, validates resolved native/generic CPU Kconfig
+selection, and records expected/detected values while retaining the prior
+metadata line. Tests cover match, mismatch, malformed/missing/ambiguous Clang
+output, malformed pin data, rejection outside AMD64, unchanged ARM64 dry-run
+dispatch, and option validation.
+
+No kernel/package rebuild or Kbuild command evidence was produced by this
+guard-only change. Existing authenticated package bytes and the pin remain
+unchanged; any later full build must capture actual Kbuild compiler commands
+and bind that evidence to the resulting package hashes.
 
 ### I-4: Refresh SP12 r2 kernel inputs, identity, config, and DTB evidence
 
