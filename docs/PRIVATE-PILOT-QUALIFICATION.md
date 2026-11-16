@@ -43,7 +43,8 @@ The prior `per-install-pin` image recorded Secure Boot enabled, both MOK keys
 enrolled, and successful `PREPARE`; the trial later recorded
 `Required signed module is not loaded: nvidia` and the guest was on the
 `7.3.0-10-generic` fallback. That prior-image result does not qualify the new
-candidate. The prior QEMU process is still open while its monitor is released.
+candidate. The prior-image QEMU process (PID 270613) remains active, and its
+monitor is not controllable from the current shell; see the [current handoff](archive/validation/private-pilot-handoff-20261116.md).
 
 The combined SP12 and existing AMD64 Ventoy images passed full destination
 read-back hashes; no AMD64 replacement has been written to Ventoy. After an
@@ -120,9 +121,11 @@ artifact/hash/device-serial checkpoint and explicit approval.
 - [ ] Repeat-media against that exact installed candidate. The diskless
   default Try/Rescue smoke passed; it does not establish repeated-media
   behavior or post-attempt package/write state.
-- [ ] Diagnose the repeat-media installer failure. Capture its detailed log,
-  audit the earlier `d463a31a…` writable-VM attempt if recoverable, and close
-  the failure dialog recorded against that older image.
+- [x] Classify the selector-cancel dialog on the prior `d463a31a…` image: it
+  is the intended fail-closed response when no disk is selected, and the
+  reproduction recorded zero target/sentinel writes. See the [reproduction
+  report](archive/validation/amd64-repeat-media-repro-20261115.md). This does
+  not qualify the current ISO's repeat-media behavior.
 - [ ] Audit the writable VM target after the earlier ISO re-entry: verify
   installed package state (including `dpkg --audit`) and determine whether
   the installer changed target contents. If the write extent cannot be
