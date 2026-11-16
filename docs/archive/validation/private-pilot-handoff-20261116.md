@@ -3,8 +3,10 @@
 **Resume point:** storage cleanup is complete, the current AMD64 ISO build
 finished, and SP12 has now reached a live session from the staged final51
 combined media. The two pilots are not qualified for installation or
-promotion. No further boot, test, or physical operation was started after the
-user said they were leaving.
+promotion. After the diagnostics handoff, the user authorized software-only
+follow-up while away from the B550I; the work completed and current blocker
+are recorded below. No physical pilot operation was started in that
+continuation.
 
 ## Newly verified on SP12
 
@@ -23,6 +25,27 @@ Its full Ventoy destination read-back passed earlier. The current diagnostic
 does not contain an in-session ISO hash, write counters, or a firmware-variable
 comparison. It establishes live startup and kernel/DTB identity, not the full
 hardware matrix or installed-system qualification.
+
+## AMD64 software-only follow-up
+
+The current AMD64 candidate remains 8,052,277,248 bytes with SHA-256
+`908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`. Its
+source changes were committed as `0ea566ecabc3849b73d9f5439f907f21d6e80072`.
+The build manifest names base revision
+`4bf0407c33024afea51da24bcae5e5f688a79da4` with a dirty tree; a post-commit
+comparison verified all 36 in-repository source hashes against the committed
+checkout. The ISO itself was not rebuilt. The full `tests/static-check.sh`
+suite passed; its root-only `mokutil` check was skipped.
+
+No fresh exact-hash install or lifecycle VM run was started. The old QEMU
+process (PID 270613) is still using the previous candidate and disposable
+fixture under `/var/tmp/amd64-perinstall-bind-20261115/`, stopped at a UEFI/MOK
+screen. Its monitor was not controllable from the current shell, so the VM and
+its disks were left untouched and no second heavy QEMU run was launched. The
+SP12 SSH check also timed out. Resume by releasing the old VM from its
+originating terminal and shutting it down cleanly; then run the current ISO's
+install, detached boot, repeat-media, and lifecycle cases. Hardware checks
+still require physical B550I/SP12 access.
 
 ## Remaining work, in order
 

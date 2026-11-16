@@ -52,6 +52,15 @@ unshare --user --map-root-user -- bash iso/build.sh \
   output/.unattended-luna-20261111135015Z/amd64-offline-repo
 ```
 
+The manifest records source base revision
+`4bf0407c33024afea51da24bcae5e5f688a79da4` and a dirty working tree. After
+the build, the exact nine-file source and test change set used for this ISO
+was committed as `0ea566ecabc3849b73d9f5439f907f21d6e80072`. A post-commit
+comparison recomputed every one of the 36 in-repository source hashes in the
+manifest against the checkout at that commit: all 36 matched. The ISO was not
+rebuilt from a clean worktree; the hash comparison ties the recorded source
+inputs to the committed content.
+
 ## Independent content review
 
 The adjacent [review record](../../../output/amd64-iso-lifecycle-20261116-perinstall-guarded-rescue/independent-review.json)
@@ -75,7 +84,8 @@ records these checks:
 
 The source checks already run for this source state passed: 40 phase2 trial
 tests, 6 GRUB-menu tests, 10 disk-selector tests, and `tests/static-check.sh`.
-The static check's root-only `mokutil` probe was skipped.
+The static check's root-only `mokutil` probe was skipped. The full static
+suite was rerun after the source commit and passed again.
 
 ## Exact-hash default boot smoke
 
@@ -112,8 +122,14 @@ The current candidate still needs a fresh exact-hash installation, detached
 boot, repeat-media attempt with post-attempt package and write-extent audit,
 candidate boot, acknowledgement/refusal gates, explicit rollback, replacement
 mode and tamper-refusal checks. The old VM monitor is held by a stale client
-in another terminal; work on that fixture is paused until its monitor is
-released. NVIDIA-dependent promotion remains an exact-hardware B550I gate.
+in another terminal. A continuation attempt on 2026-11-16 found that VM (PID
+270613, using the previous image and disposable fixture
+`/var/tmp/amd64-perinstall-bind-20261115/`) still active at a UEFI/MOK screen.
+Its monitor endpoint was not controllable from the current shell, so no new
+heavy QEMU run was started and the fixture disks were left untouched. First
+regain control in the originating terminal and shut that VM down cleanly, then
+continue the exact-current-hash runs. NVIDIA-dependent promotion remains an
+exact-hardware B550I gate.
 
 No ISO was staged on Ventoy, and no physical disk, internal storage, or host
 firmware order was changed. At the end of this run `/` had
