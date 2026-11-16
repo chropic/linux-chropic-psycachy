@@ -1,0 +1,138 @@
+sudo -S -p 'ARM64_SUDO_PROMPT_26B' bash -c 'set -euo pipefail
+[?2004l[?2004h> printf '"'"'\n== dpkg audit ==\n'"'"'
+[?2004l[?2004h> dpkg --audit
+[?2004l[?2004h> printf '"'"'DPKG_AUDIT_EMPTY_IF_NO_OUTPUT\n'"'"'
+[?2004l[?2004h> printf '"'"'\n== offline dependency check ==\n'"'"'
+[?2004l[?2004h> apt-get --no-download -o Acquire::Retries=0 -o Acquire::http::Timeout=1 check
+[?2004l[?2004h> printf '"'"'\n== kernel package versions ==\n'"'"'
+[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package}\t${Version}\t${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121 linux-headers-7.3.1-psycachy-sp121 linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2 linux-image-7.3.0-9-generic
+[?2004l[?2004h> printf '"'"'\n== relevant boot files ==\n'"'"'
+[?2004l[?2004h> find /boot -maxdepth 4 -type f \( -name '"'"'vmlinuz-*'"'"' -o -name '"'"'initrd.img-*'"'"' -o -name '"'"'Image-*'"'"' -o -name '"'"'*.dtb'"'"' \) -printf '"'"'%p %s bytes\n'"'"' | sort
+[?2004l[?2004h> find /boot -maxdepth 4 -type f \( -name '"'"'vmlinuz-*'"'"' -o -name '"'"'initrd.img-*'"'"' -o -name '"'"'Image-*'"'"' -o -name '"'"'*.dtb'"'"' \) -print0 | sort -z | xargs -0r sha256sum
+[?2004l[?2004h> printf '"'"'\n== mounts and block read-only state ==\n'"'"'
+[?2004l[?2004h> findmnt -rn -o SOURCE,TARGET,FSTYPE,OPTIONS
+[?2004l[?2004h> lsblk -e 7 -o NAME,RO,TYPE,FSTYPE,SIZE,MOUNTPOINTS
+[?2004l[?2004h> printf '"'"'\n== ESP files ==\n'"'"'
+[?2004l[?2004h> find /boot/efi /boot/firmware -maxdepth 4 -type f -printf '"'"'%p %s bytes\n'"'"' 2>/dev/null | sort || true
+[?2004l[?2004h> printf '"'"'\n== GRUB entries/default ==\n'"'"'
+[?2004l[?2004h> grep -nE '"'"'^(GRUB_DEFAULT|GRUB_SAVEDEFAULT|GRUB_TIMEOUT|GRUB_DISABLE_OS_PROBER)='"'"' /etc/default/grub || true
+[?2004l[?2004h> grep -nE '"'"'menuentry |submenu '"'"' /boot/grub/grub.cfg | head -n 24
+[?2004l[?2004h> printf '"'"'\n__POSTCHECK_DONE__\n'"'"'
+[?2004l[?2004h> '
+[?2004l]3008;start=8490657e-9a2c-410f-b2a6-6af46a988e52;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=205ca55f-8643-4150-b6ed-ad114815d146;pid=1427;cwd=/home/lun\[sudo: ARM64_SUDO_PROMPT_26B] Password: ****************************************                                        [0K
+
+== dpkg audit ==
+DPKG_AUDIT_EMPTY_IF_NO_OUTPUT
+
+== offline dependency check ==
+Reading package lists... 0%Reading package lists... 0%Reading package lists... 9%Reading package lists... Done
+Building dependency tree... 0%Building dependency tree... 0%Building dependency tree... 50%Building dependency tree... 50%Building dependency tree... Done
+Reading state information... 0% Reading state information... 0%Reading state information... Done
+
+== kernel package versions ==
+linux-headers-7.3.1-psycachy-sp121	7.3.1-1psycachy1	installed
+linux-headers-7.3.1-psycachy-sp121-r2	7.3.1-1psycachy2	installed
+linux-image-7.3.0-9-generic	7.3.0-9.9	installed
+linux-image-7.3.1-psycachy-sp121	7.3.1-1psycachy1	installed
+linux-image-7.3.1-psycachy-sp121-r2	7.3.1-1psycachy2	installed
+
+== relevant boot files ==
+/boot/initrd.img-7.3.0-9-generic 55400863 bytes
+/boot/initrd.img-7.3.1-psycachy-sp121 48418297 bytes
+/boot/initrd.img-7.3.1-psycachy-sp121-r2 44817269 bytes
+/boot/vmlinuz-7.3.0-9-generic 26351496 bytes
+/boot/vmlinuz-7.3.1-psycachy-sp121 17138176 bytes
+/boot/vmlinuz-7.3.1-psycachy-sp121-r2 17138176 bytes
+6e676ebf431bc119f84350a76d535ce0d58ef4567e8ebfb1f20456f2efe86531  /boot/initrd.img-7.3.0-9-generic
+af91de51b74b7259beead474c562ea4a11268efe84f084890c1716e602954962  /boot/initrd.img-7.3.1-psycachy-sp121
+c8eb0a69b3f8ba70b4bcee69507105d6598f41ea314d27bded1a614c1d234fa3  /boot/initrd.img-7.3.1-psycachy-sp121-r2
+1bb5529f0cee6ed43702d1d09a92ea850c1b0bbdf4dbdf1ef7dbe4ccaa2270cf  /boot/vmlinuz-7.3.0-9-generic
+904745e83a01d3b7b46462518aa27764e207d39224c18baeae1bc967d28d5115  /boot/vmlinuz-7.3.1-psycachy-sp121
+bf8cf5c425473df49b03dbaf536bcc1b1ef20360d7f511c2a68f59d41c672451  /boot/vmlinuz-7.3.1-psycachy-sp121-r2
+
+== mounts and block read-only state ==
+tmpfs /run tmpfs rw,nosuid,nodev,size=1102464k,nr_inodes=819200,mode=755,inode64
+/dev/vda2 / ext4 rw,relatime
+devtmpfs /dev devtmpfs rw,nosuid,size=2704756k,nr_inodes=676189,mode=755,inode64
+tmpfs /dev/shm tmpfs rw,nosuid,nodev,inode64,usrquota
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=600,ptmxmode=000
+sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime
+securityfs /sys/kernel/security securityfs rw,nosuid,nodev,noexec,relatime
+cgroup2 /sys/fs/cgroup cgroup2 rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting
+none /sys/fs/pstore pstore rw,nosuid,nodev,noexec,relatime
+efivarfs /sys/firmware/efi/efivars efivarfs rw,nosuid,nodev,noexec,relatime
+bpf /sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700
+configfs /sys/kernel/config configfs rw,nosuid,nodev,noexec,relatime
+proc /proc proc rw,nosuid,nodev,noexec,relatime
+systemd-1 /proc/sys/fs/binfmt_misc autofs rw,relatime,fd=44,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=11572
+mqueue /dev/mqueue mqueue rw,nosuid,nodev,noexec,relatime
+hugetlbfs /dev/hugepages hugetlbfs rw,nosuid,nodev,relatime,pagesize=2M
+debugfs /sys/kernel/debug debugfs rw,nosuid,nodev,noexec,relatime
+tracefs /sys/kernel/tracing tracefs rw,nosuid,nodev,noexec,relatime
+none /run/credentials/systemd-journald.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+fusectl /sys/fs/fuse/connections fusectl rw,nosuid,nodev,noexec,relatime
+tmpfs /tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota
+none /run/credentials/systemd-resolved.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+/dev/vda1 /boot/efi vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc rw,nosuid,nodev,noexec,relatime
+none /run/credentials/serial-getty@ttyAMA0.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+tmpfs /run/user/1000 tmpfs rw,nosuid,nodev,relatime,size=551232k,nr_inodes=137808,mode=700,uid=1000,gid=1000,inode64
+portal /run/user/1000/doc fuse.portal rw,nosuid,nodev,relatime,user_id=1000,group_id=1000
+tmpfs[/snapd/ns] /run/snapd/ns tmpfs rw,nosuid,nodev,size=1102464k,nr_inodes=819200,mode=755,inode64
+/dev/vdb /mnt/r2-pkgs iso9660 ro,relatime,nojoliet,check=s,map=n,blocksize=2048,iocharset=utf8
+/dev/loop0 /snap/snapd/28255 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop1 /snap/core24/2125 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop2 /snap/bare/5 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop3 /snap/desktop-security-center/207 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532496]] /run/snapd/ns/desktop-security-center.mnt nsfs rw
+/dev/loop4 /snap/firefox/9035 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532497]] /run/snapd/ns/firefox.mnt nsfs rw
+/dev/loop5 /snap/gnome-46-2404/169 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop6 /snap/gtk-common-themes/1535 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop7 /snap/mesa-2404/1836 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532498]] /run/snapd/ns/mesa-2404.mnt nsfs rw
+/dev/loop8 /snap/prompting-client/229 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532499]] /run/snapd/ns/prompting-client.mnt nsfs rw
+/dev/loop9 /snap/snap-store/1448 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532500]] /run/snapd/ns/snap-store.mnt nsfs rw
+/dev/loop10 /snap/snapd-desktop-integration/396 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532501]] /run/snapd/ns/snapd-desktop-integration.mnt nsfs rw
+/dev/loop11 /snap/thunderbird/1281 squashfs ro,nodev,relatime,errors=continue,threads=single
+nsfs[mnt:[4026532503]] /run/snapd/ns/thunderbird.mnt nsfs rw
+NAME   RO TYPE FSTYPE    SIZE MOUNTPOINTS
+vda     0 disk            64G 
+├─vda1  0 part vfat        1G /boot/efi
+└─vda2  0 part ext4     62.9G /
+vdb     1 disk iso9660 141.2M /mnt/r2-pkgs
+vdc     1 disk             8G 
+
+== ESP files ==
+/boot/efi/EFI/BOOT/BOOTAA64.EFI 6316032 bytes
+/boot/efi/EFI/BOOT/BOOTAA64.EFI.pre-sp12 987440 bytes
+/boot/efi/EFI/BOOT/fbaa64.efi 90184 bytes
+/boot/efi/EFI/BOOT/mmaa64.efi 884360 bytes
+/boot/efi/EFI/ubuntu/BOOTAA64.CSV 110 bytes
+/boot/efi/EFI/ubuntu/grubaa64.efi 2967432 bytes
+/boot/efi/EFI/ubuntu/grub.cfg 117 bytes
+/boot/efi/EFI/ubuntu/mmaa64.efi 884360 bytes
+/boot/efi/EFI/ubuntu/shimaa64.efi 987440 bytes
+/boot/efi/sp12/dtb 201937 bytes
+/boot/efi/sp12/initrd.img 48418297 bytes
+/boot/efi/sp12/SP12BOOT 0 bytes
+/boot/efi/sp12/vmlinuz 17138176 bytes
+
+== GRUB entries/default ==
+6:GRUB_DEFAULT=0
+8:GRUB_TIMEOUT=0
+159:menuentry 'Ubuntu' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-simple-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+171:submenu 'Advanced options for Ubuntu' $menuentry_id_option 'gnulinux-advanced-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+172:	menuentry 'Ubuntu, with Linux 7.3.1-psycachy-sp121-r2' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.1-psycachy-sp121-r2-advanced-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+186:	menuentry 'Ubuntu, with Linux 7.3.1-psycachy-sp121-r2 (recovery mode)' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.1-psycachy-sp121-r2-recovery-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+199:	menuentry 'Ubuntu, with Linux 7.3.1-psycachy-sp121' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.1-psycachy-sp121-advanced-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+215:	menuentry 'Ubuntu, with Linux 7.3.1-psycachy-sp121 (recovery mode)' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.1-psycachy-sp121-recovery-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+230:	menuentry 'Ubuntu, with Linux 7.3.0-9-generic' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.0-9-generic-advanced-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+244:	menuentry 'Ubuntu, with Linux 7.3.0-9-generic (recovery mode)' --class ubuntu --class gnu-linux --class gnu --class os $menuentry_id_option 'gnulinux-7.3.0-9-generic-recovery-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052' {
+275:		menuentry 'UEFI Firmware Settings' $menuentry_id_option 'uefi-firmware' {
+
+__POSTCHECK_DONE__
+]3008;end=8490657e-9a2c-410f-b2a6-6af46a988e52;exit=success\]3008;start=9a1d3651-715d-423e-af0c-642ff75dcf93;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=205ca55f-8643-4150-b6ed-ad114815d146;pid=1427;cwd=/home/lun\[?2004hlun@luna-arm64:~$ 

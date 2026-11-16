@@ -86,20 +86,23 @@ reboot anomaly at the next attended window. See the
    generic fallback recovery. Promotion requires complete hardware
    attestation. Stage the ISO on Ventoy only with a file-level checkpoint and
    full read-back hash; no AMD64 replacement is currently staged.
-3. **Complete the ARM64 changed-release update on a fresh overlay.** The prior
-   attempt reached a login prompt but did not run `dpkg` or hooks. An explicitly
-   authorized disposable credential/seed is required. Observe package hooks,
-   dracut, matched kernel/module/DTB/initramfs staging, fallback preservation,
-   media-free boot, interruption recovery, and rollback. The retained r1
-   target is at
-   `output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm/target.qcow2`;
-   use a fresh child overlay and copied UEFI variables.
-4. **Close the FAT/recovery interruption matrix.** Cover staging/flush, marker
-   transitions, each payload promotion, recovery rotation, and restore
-   interruptions. Retain fault-overlap evidence, payload/marker checks,
-   read-only filesystem checks, loader-selection results, and successful
-   recovery/retry evidence. Simulated power loss does not qualify physical
-   power-loss safety.
+3. **Close the remaining ARM64 update checks.** Exact-hash r2 package
+   installation, dracut/kdump/GRUB hooks, media-free r2 login through Ubuntu
+   shim/GRUB, and disposable r1→r2→r1 SP12 payload synchronization passed on
+   2026-11-16. Forty-eight focused process/unit simulations and controlled
+   `dpkg --unpack`→`dpkg --configure -a` recovery passed. Still open: recovery
+   after forcibly stopping QEMU or killing dpkg during postinst/dracut, then
+   reboot through the custom SP12 fallback EFI path after selection if a
+   suitable emulator is available. QEMU `virt` results do not establish SP12
+   hardware boot. See the [ARM64 update report](arm64-r2-update-qemu-20261116.md)
+   and [evidence bundle](artifacts/arm64-r2-update-qemu-20261116/).
+4. **Record the limits of FAT/recovery testing.** The focused 48-test suite
+   passed staging/flush, marker, payload promotion, recovery rotation, restore,
+   and retry simulations. Earlier FAT evidence includes exact-sector positive
+   controls and one passing guest allocation-metadata EIO during staged flush;
+   other fault points remain incomplete or inconclusive. Simulated failures do
+   not qualify physical power-loss safety; keep physical interruption testing
+   out of scope.
 5. **Run physical installed-system rehearsals only after the software gates.**
    B550I requires a fresh serial-bound Apple HDD checkpoint and separate
    artifact/hash approval; verify Secure Boot, NVIDIA/DKMS, update, fallback,
@@ -114,13 +117,14 @@ reboot anomaly at the next attended window. See the
 
 ## Working constraints and retained state
 
-- Preserve at least 80 GiB free; 164.47 GiB was free at the end of the AMD64
-  run. Run one heavy job at a time.
+- Preserve at least 80 GiB free; 165 GiB was free after the disposable ARM64
+  update/recovery VM files were removed. Run one heavy job at a time.
 - No QEMU VM or monitor was active at closeout. The exact-hash AMD64 fixture
   is retained under `/var/tmp/amd64-perinstall-current-20261116/` for later
-  lifecycle work. The previous-image PID 270613 was absent. The ARM64 r1
-  target fixture remains for the update test; remove fixtures only after
-  their dependent tests finish.
+  lifecycle work. The previous-image PID 270613 was absent. The retained ARM64
+  r1 source target remains at `output/.unattended-luna-20261111210910Z/`; the
+  disposable update/recovery clones were removed after log collection. No
+  QEMU VM was active at closeout.
 - Do not copy the disposable VM's private MOK keys to the B550I. A physical
   installation generates its own per-install keys, which must be enrolled
   through the attended MOK manager. Do not change persistent firmware order,

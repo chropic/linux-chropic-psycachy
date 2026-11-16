@@ -1,0 +1,63 @@
+printf '\n__BOOT_CHECK_BEGIN__\n'; uname -a; printf '\nCMDLINE\n'; cat /proc/cmdline; printf '\nPACKAGE_AUDIT\n'; dpkg --audit; dpkg-query -W -f='${binary:Package} ${Version} ${db:Status-Status}\n' linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2 linux-image-7.3.1-psycachy-sp121 linux-image-7.3.0-9-generic; printf '\nBOOT_CONFIG\n'; cat /etc/sp12-linux/boot.conf; printf '\nMOUNTS\n'; findmnt -rn -o SOURCE,TARGET,FSTYPE,OPTIONS; printf '\n__BOOT_CHECK_DONE__\n'
+[?2004l]3008;start=844ea75e-1928-4ed1-9a8b-980fd8557b7d;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\
+__BOOT_CHECK_BEGIN__
+Linux luna-arm64 7.3.1-psycachy-sp121-r2 #1psycachy2 SMP PREEMPT_DYNAMIC 2026-11-13 17:48:38 +0000 aarch64 GNU/Linux
+
+CMDLINE
+BOOT_IMAGE=/boot/vmlinuz-7.3.1-psycachy-sp121-r2 root=UUID=1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052 ro quiet splash console=tty0 crashkernel=2G-4G:320M,4G-32G:512M,32G-64G:1024M,64G-128G:2048M,128G-:4096M
+
+PACKAGE_AUDIT
+linux-headers-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+linux-image-7.3.0-9-generic 7.3.0-9.9 installed
+linux-image-7.3.1-psycachy-sp121 7.3.1-1psycachy1 installed
+linux-image-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+
+BOOT_CONFIG
+KVER=7.3.1-psycachy-sp121
+DTB=/boot/dtb-7.3.1-psycachy-sp121
+
+MOUNTS
+tmpfs /run tmpfs rw,nosuid,nodev,size=1103376k,nr_inodes=819200,mode=755,inode64
+/dev/vda2 / ext4 rw,relatime
+devtmpfs /dev devtmpfs rw,nosuid,size=2713288k,nr_inodes=678322,mode=755,inode64
+tmpfs /dev/shm tmpfs rw,nosuid,nodev,inode64,usrquota
+devpts /dev/pts devpts rw,nosuid,noexec,relatime,gid=5,mode=600,ptmxmode=000
+sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime
+securityfs /sys/kernel/security securityfs rw,nosuid,nodev,noexec,relatime
+cgroup2 /sys/fs/cgroup cgroup2 rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot,memory_hugetlb_accounting
+none /sys/fs/pstore pstore rw,nosuid,nodev,noexec,relatime
+efivarfs /sys/firmware/efi/efivars efivarfs rw,nosuid,nodev,noexec,relatime
+bpf /sys/fs/bpf bpf rw,nosuid,nodev,noexec,relatime,mode=700
+configfs /sys/kernel/config configfs rw,nosuid,nodev,noexec,relatime
+proc /proc proc rw,nosuid,nodev,noexec,relatime
+systemd-1 /proc/sys/fs/binfmt_misc autofs rw,relatime,fd=40,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=10053
+debugfs /sys/kernel/debug debugfs rw,nosuid,nodev,noexec,relatime
+hugetlbfs /dev/hugepages hugetlbfs rw,nosuid,nodev,relatime,pagesize=2M
+mqueue /dev/mqueue mqueue rw,nosuid,nodev,noexec,relatime
+tracefs /sys/kernel/tracing tracefs rw,nosuid,nodev,noexec,relatime
+none /run/credentials/systemd-journald.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+fusectl /sys/fs/fuse/connections fusectl rw,nosuid,nodev,noexec,relatime
+tmpfs /tmp tmpfs rw,nosuid,nodev,nr_inodes=1048576,inode64,usrquota
+none /run/credentials/systemd-resolved.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+/dev/loop0 /snap/bare/5 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop2 /snap/desktop-security-center/207 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop1 /snap/core24/2125 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop3 /snap/firefox/9035 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop4 /snap/gnome-46-2404/169 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop5 /snap/gtk-common-themes/1535 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop6 /snap/mesa-2404/1836 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop7 /snap/snap-store/1448 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop8 /snap/prompting-client/229 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop9 /snap/thunderbird/1281 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop10 /snap/snapd/28255 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/loop11 /snap/snapd-desktop-integration/396 squashfs ro,nodev,relatime,errors=continue,threads=single
+/dev/vda1 /boot/efi vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
+binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc rw,nosuid,nodev,noexec,relatime
+none /run/credentials/serial-getty@ttyAMA0.service tmpfs ro,nosuid,nodev,noexec,relatime,nosymfollow,size=1024k,nr_inodes=1024,mode=700,inode64,noswap
+tmpfs /run/user/1000 tmpfs rw,nosuid,nodev,relatime,size=551684k,nr_inodes=137921,mode=700,uid=1000,gid=1000,inode64
+portal /run/user/1000/doc fuse.portal rw,nosuid,nodev,relatime,user_id=1000,group_id=1000
+tmpfs[/snapd/ns] /run/snapd/ns tmpfs rw,nosuid,nodev,size=1103376k,nr_inodes=819200,mode=755,inode64
+nsfs[mnt:[4026532480]] /run/snapd/ns/snapd-desktop-integration.mnt nsfs rw
+nsfs[mnt:[4026532481]] /run/snapd/ns/prompting-client.mnt nsfs rw
+
+__BOOT_CHECK_DONE__

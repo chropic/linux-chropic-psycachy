@@ -60,31 +60,34 @@ the exact current ISO and target hardware; see the
 
 ### I-6: Reproduce ARM64 changed-release boot-payload updates
 
-**State:** Open; the first disposable r2 changed-release attempt was
-independently reviewed and correctly classified incomplete. It reached the
-guest login prompt without an explicitly authorized test credential or seed;
-no dpkg transition ran, and QEMU ended after host SIGTERM with clean guest
-shutdown unconfirmed. The 2026-11-15 independent evidence review verified
-all 34 nonempty entries in the output manifest (older historical review text
-says 33) without changing the incomplete classification. The retained report
-and full output bundle are under
-`docs/archive/validation/artifacts/arm64-update-reproducer-20261114/`. Existing
-postinst and initramfs hooks delegate to
-`sp12-sync-boot`, whose persistent boot configuration has not been shown to
-select a changed kernel release with a matching packaged DTB and regenerated
-initramfs. Same-version reinstall evidence is incomplete and must not be used
-as a changed-release result.
+**State:** Partial; the 2026-11-16 disposable QEMU run completed exact-hash r2
+package installation, dracut/kdump/GRUB hooks, clean `dpkg --audit`, offline
+`apt-get --no-download check`, a media-free r2 boot through Ubuntu shim/GRUB,
+and the SP12 selector/sync round trip r1→r2→r1. The ESP kernel, initramfs,
+and DTB matched each selected source; the marker and read-only remount were
+verified, and the recovery manifest passed. Forty-eight focused process/unit
+simulations passed across boot sync, fallback selection, recovery/restore,
+flush/promotion/marker/rotation faults, FAT cleanup ownership, and sector-map
+parsing. A controlled dpkg recovery also passed: after `dpkg --unpack` left the
+r2 image and headers unconfigured, `dpkg --configure -a` completed hooks,
+initramfs generation, GRUB regeneration, and boot synchronization; final audit
+and offline dependency checks passed. See the [2026-11-16 report](archive/validation/arm64-r2-update-qemu-20261116.md)
+and [evidence bundle](archive/validation/artifacts/arm64-r2-update-qemu-20261116/).
 
-Reproduce changed-release installation, completed dpkg/hook status, interrupted
-update recovery, and rollback on a disposable target. Monitor initramfs/dracut
-completion instead of treating a fixed timeout as completion. Implement
-explicit candidate selection and matched kernel/module/DTB/initrd staging only
-if the reproducer demonstrates a gap; preserve fallback bytes and recovery
-generations.
+The first 2026-11-14 attempt remains correctly classified incomplete; it had
+no authenticated shell and no dpkg transition. The later run does not close
+recovery after forcibly stopping QEMU or killing dpkg during postinst/dracut,
+a reboot through the custom SP12 fallback EFI path after synchronization, or
+physical SP12 qualification. The process tests use temporary fixtures and do
+not establish physical power-loss safety. No code gap was demonstrated by the
+successful changed-release run; make no implementation change unless a new
+reproducer shows one.
 
-**Done when:** a reviewed disposable sequence proves completed package hooks,
-new candidate selection, separately bootable fallback, interrupted-update
-recovery, and rollback without changing retained VM bases.
+**Done when:** a reviewed disposable sequence proves changed-release package
+hooks, media-free candidate boot, matched kernel/module/DTB/initramfs ESP
+selection, return to the prior payload, recovery from an unpacked but
+unconfigured package state, and the limits of abrupt-interruption,
+physical-loader, and power-loss scope without changing retained VM bases.
 
 ### I-7: Add opt-in installer payload to the private SP12 live builder
 
@@ -565,8 +568,12 @@ path is the supported recovery procedure.
   payload promotion left a mixed kernel/initrd
   state without a marker; read-only fsck reported the dirty volume, and fresh
   UEFI selection halted at the marker guard before the candidate kernel branch.
-  Other stage/marker/promotion/rotation interruption points, Surface DTB
-  selection, and physical power-loss safety remain unqualified.
+  The 2026-11-16 focused test run passed 48 temporary-file simulations covering
+  stage/flush, marker, promotion, recovery rotation, restore, and retry. The
+  historical FAT evidence includes exact-sector positive controls and one
+  passing guest allocation-metadata EIO during staged flush; other fault points
+  remain incomplete/inconclusive. Surface DTB selection and physical
+  power-loss safety remain unqualified.
   See the earlier [FAT matrix](archive/validation/unattended-luna-phase1-installers-phase2-20261111.md#fat-fault-qualification--partial-guest-coverage-matrix-open)
   and the [QEMU continuation](archive/validation/unattended-luna-phase1-installers-phase2-20261111.md#2026-11-12-qemu-update-and-arm64-installer-retry).
 - `tools/phase2-kernel-trial.py` consumes existing pins and records exact

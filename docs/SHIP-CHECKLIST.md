@@ -661,8 +661,11 @@ the final pin manifests, and retained build/verifier output under the ignored
   ESP and reached GRUB but captured no kernel/userspace. A 2026-11-14 generic
   EFI/ACPI control manually loaded the restored kernel/initrd without a DTB and
   reached `getty.target` and a serial login prompt, then shut down cleanly. The
-  automatic hidden default/DTB path, in-guest package/payload audit, and
-  physical SP12 recovery boot remain open; see the
+  2026-11-16 focused process suite passed 48 sync/fallback/FAT simulations;
+  broader sector-EIO coverage and physical power-loss safety remain open; the
+  earlier evidence includes one passing guest staged-flush EIO case. The
+  automatic custom-loader default/DTB path and physical SP12 recovery boot
+  remain open; see the
   [generic-control report](archive/validation/artifacts/sp12-restored-target-generic-control-20261114/report.md).
   No physical SP12 fallback was used as a test target.
 - Recheck the current SP12 fallback trio and recovery manifest before any
@@ -708,7 +711,11 @@ blocking gate; no provisioning or repair was attempted.
   before restart and no-media boot. A separate COW clone booted the generic
   kernel to userspace; the pinned 7.3.1 candidate reached
   `systemd-tmpfiles-setup-dev.service` and stalled after `/dev/vda2` was
-  detected. Post-install package-update and rollback hooks remain untested. The historical final37
+  detected. At that earlier stage package-update and rollback hooks were not
+  tested. The 2026-11-16 changed-release QEMU run later completed the r2
+  package hooks, media-free r2 boot, and SP12 selector/sync rollback; see the
+  [ARM64 update report](archive/validation/arm64-r2-update-qemu-20261116.md).
+  The historical final37
   r2 ISO passed its pin, package, offline-closure, live-payload, and UEFI
   checks. Attempt 4 reached the success screen, passed the package receipt and
   post-stop QCOW/sentinel checks, then booted the default Ubuntu generic kernel
@@ -721,14 +728,18 @@ blocking gate; no provisioning or repair was attempted.
 - After install completion and post-stop checks, verify the pinned ARM64
   kernel, static DTB, boot-sync hook files, ESP copies, and removable fallback
   files. Generic QEMU cannot validate the SP12 DTB at runtime.
-- In the disposable installed target, exercise the package-update hook with a
-  kernel package change. Verify the new kernel/DTB/initrd reach the ESP,
-  rollback restores a bootable fallback, and the recovery checksum is updated
-  as designed. This also closes the earlier open Phase 1 checks for clean
-  package dependency resolution and boot-sync integration across an update
-  and reboot.
-- Remove the ISO and boot the installed system. Check fallback selection,
-  rollback behavior, package health, and second-disk checksum/sentinel.
+- **Passed on 2026-11-16 in disposable QEMU:** exact r2 image/header package
+  hashes, completed initramfs hooks, clean package state, offline dependency
+  check, media-free r2 boot through Ubuntu shim/GRUB, and SP12 r1→r2→r1
+  selection/synchronization. Each selected ESP kernel/initramfs/DTB matched;
+  recovery checksums, marker, and read-only ESP state passed. Forty-eight
+  focused process/unit simulations and controlled unpack/configure dpkg
+  recovery passed. See the [report](archive/validation/arm64-r2-update-qemu-20261116.md)
+  and [transcripts](archive/validation/artifacts/arm64-r2-update-qemu-20261116/).
+- **Still open:** recovery after forcibly stopping QEMU or killing dpkg during
+  postinst/dracut, reboot through the custom SP12 fallback EFI path after
+  selection, real FAT-sector error injection, and physical SP12 boot/device
+  checks. The QEMU `virt`/GRUB result is not a physical SP12 boot result.
 - Validate supported SP12 live-media and installed-system behavior without
   changing the verified fallback or recovery-panel route.
 

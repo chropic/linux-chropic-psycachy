@@ -1,0 +1,45 @@
+sudo -S -p 'ARM64_SUDO_PROMPT_2A' bash -c 'set -euo pipefail
+[?2004l[?2004h> printf '"'"'\n== rollback active config ==\n'"'"'; cat /etc/sp12-linux/boot.conf
+[?2004l[?2004h> printf '"'"'\n== exact r1 ESP matches ==\n'"'"'
+[?2004l[?2004h> cmp -s /boot/vmlinuz-7.3.1-psycachy-sp121 /boot/efi/sp12/vmlinuz; echo '"'"'r1 kernel: MATCH'"'"'
+[?2004l[?2004h> cmp -s /boot/initrd.img-7.3.1-psycachy-sp121 /boot/efi/sp12/initrd.img; echo '"'"'r1 initramfs: MATCH'"'"'
+[?2004l[?2004h> cmp -s /boot/dtb-7.3.1-psycachy-sp121 /boot/efi/sp12/dtb; echo '"'"'r1 DTB: MATCH'"'"'
+[?2004l[?2004h> test -f /boot/efi/sp12/SP12BOOT; echo '"'"'SP12BOOT marker: PRESENT'"'"'
+[?2004l[?2004h> findmnt -n -o SOURCE,TARGET,FSTYPE,OPTIONS /boot/efi
+[?2004l[?2004h> printf '"'"'\n== last recovery integrity ==\n'"'"'
+[?2004l[?2004h> cd /var/lib/sp12-linux/recovery; sha256sum -c SHA256SUMS; cat SHA256SUMS
+[?2004l[?2004h> printf '"'"'\n== candidate/fallback package state ==\n'"'"'
+[?2004l[?2004h> dpkg --audit
+[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package} ${Version} ${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2 linux-image-7.3.1-psycachy-sp121 linux-image-7.3.0-9-generic
+[?2004l[?2004h> printf '"'"'\n__ROLLBACK_VERIFY_DONE__\n'"'"'
+[?2004l[?2004h> '
+[?2004l]3008;start=091fad1a-8f7e-4f76-969f-2518194e6aa4;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\
+== rollback active config ==
+KVER=7.3.1-psycachy-sp121
+DTB=/boot/dtb-7.3.1-psycachy-sp121
+
+== exact r1 ESP matches ==
+r1 kernel: MATCH
+r1 initramfs: MATCH
+r1 DTB: MATCH
+SP12BOOT marker: PRESENT
+/dev/vda1
+  /boot/efi
+    v ro,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortna
+
+== last recovery integrity ==
+vmlinuz: OK
+initrd.img: OK
+dtb: OK
+bf8cf5c425473df49b03dbaf536bcc1b1ef20360d7f511c2a68f59d41c672451  vmlinuz
+c8eb0a69b3f8ba70b4bcee69507105d6598f41ea314d27bded1a614c1d234fa3  initrd.img
+274ceb42fb5f831adda4a5c4ef7b7196a4bb5a6ef4a927315149ff4bbf39eb40  dtb
+
+== candidate/fallback package state ==
+linux-headers-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+linux-image-7.3.0-9-generic 7.3.0-9.9 installed
+linux-image-7.3.1-psycachy-sp121 7.3.1-1psycachy1 installed
+linux-image-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+
+__ROLLBACK_VERIFY_DONE__
+]3008;end=091fad1a-8f7e-4f76-969f-2518194e6aa4;exit=success\]3008;start=097a7ac7-fd5d-4d2c-a751-713bd2ca3559;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\[?2004hlun@luna-arm64:~$ 

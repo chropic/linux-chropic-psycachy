@@ -1,0 +1,59 @@
+sudo -S -p 'ARM64_SUDO_PROMPT_2C' bash -c 'set +e
+[?2004l[?2004h> dpkg --configure -a
+[?2004l[?2004h> rc=$?
+[?2004l[?2004h> printf '"'"'\nDPKG_CONFIGURE_RC=%s\n'"'"' "$rc"
+[?2004l[?2004h> printf '"'"'\n== post-recovery audit ==\n'"'"'
+[?2004l[?2004h> dpkg --audit
+[?2004l[?2004h> audit_rc=$?
+[?2004l[?2004h> printf '"'"'DPKG_AUDIT_RC=%s\n'"'"' "$audit_rc"
+[?2004l[?2004h> printf '"'"'\n== package versions ==\n'"'"'
+[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package} ${Version} ${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2 linux-image-7.3.1-psycachy-sp121 linux-image-7.3.0-9-generic
+[?2004l[?2004h> printf '"'"'\n== offline dependency check ==\n'"'"'
+[?2004l[?2004h> apt-get --no-download -o Acquire::Retries=0 -o Acquire::http::Timeout=1 check
+[?2004l[?2004h> apt_rc=$?
+[?2004l[?2004h> printf '"'"'APT_CHECK_RC=%s\n'"'"' "$apt_rc"
+[?2004l[?2004h> printf '"'"'\n__CONFIGURE_DONE__ rc=%s audit=%s apt=%s\n'"'"' "$rc" "$audit_rc" "$apt_rc"
+[?2004l[?2004h> exit "$rc"
+[?2004l[?2004h> '
+[?2004l]3008;start=1bbf0462-85de-4ecb-bee5-599727ca076d;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=2372c7f7-b9c8-4644-b1d6-d4f6f56cc74f;pid=1520;cwd=/home/lun\Setting up linux-headers-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
+Setting up linux-image-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
+dracut: Generating /boot/initrd.img-7.3.1-psycachy-sp121-r2
+kdump-tools: Generating /var/lib/kdump/initrd.img-7.3.1-psycachy-sp121-r2 (dracut)
+flash-kernel: deferring update (trigger activated)
+Sourcing file `/etc/default/grub'
+Sourcing file `/etc/default/grub.d/kdump-tools.cfg'
+Generating grub configuration file ...
+Found linux image: /boot/vmlinuz-7.3.1-psycachy-sp121-r2
+Found initrd image: /boot/initrd.img-7.3.1-psycachy-sp121-r2
+Found linux image: /boot/vmlinuz-7.3.1-psycachy-sp121
+Found initrd image: /boot/initrd.img-7.3.1-psycachy-sp121
+Found linux image: /boot/vmlinuz-7.3.0-9-generic
+Found initrd image: /boot/initrd.img-7.3.0-9-generic
+Warning: os-prober will not be executed to detect other bootable partitions.
+Systems on them will not be added to the GRUB boot configuration.
+Check GRUB_DISABLE_OS_PROBER documentation entry.
+Adding boot menu entry for UEFI Firmware Settings ...
+done
+sp12-sync-boot: 7.3.1-psycachy-sp121 already matches the ESP; no writes needed
+Processing triggers for flash-kernel (3.110ubuntu4)…
+System running in EFI mode, skipping.
+
+DPKG_CONFIGURE_RC=0
+
+== post-recovery audit ==
+DPKG_AUDIT_RC=0
+
+== package versions ==
+linux-headers-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+linux-image-7.3.0-9-generic 7.3.0-9.9 installed
+linux-image-7.3.1-psycachy-sp121 7.3.1-1psycachy1 installed
+linux-image-7.3.1-psycachy-sp121-r2 7.3.1-1psycachy2 installed
+
+== offline dependency check ==
+Reading package lists... 0%Reading package lists... 0%Reading package lists... 9%Reading package lists... Done
+Building dependency tree... 0%Building dependency tree... 0%Building dependency tree... 50%Building dependency tree... 50%Building dependency tree... Done
+Reading state information... 0% Reading state information... 0%Reading state information... Done
+APT_CHECK_RC=0
+
+__CONFIGURE_DONE__ rc=0 audit=0 apt=0
+]3008;end=1bbf0462-85de-4ecb-bee5-599727ca076d;exit=success\]3008;start=a87c56c7-5978-4d65-b353-ec4dd16a0752;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=2372c7f7-b9c8-4644-b1d6-d4f6f56cc74f;pid=1520;cwd=/home/lun\[?2004hlun@luna-arm64:~$ 

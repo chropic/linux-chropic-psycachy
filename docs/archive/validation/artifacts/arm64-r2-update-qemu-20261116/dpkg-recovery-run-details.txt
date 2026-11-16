@@ -1,0 +1,7 @@
+Controlled dpkg unpack/configure recovery qualification
+
+QEMU 11.1.3 TCG ARM64 virt/GICv3, cortex-a72, 6 vCPUs, 6 GiB RAM; networking disabled. Fresh 64 GiB QCOW child overlay backed by the completed r2 update clone. The r2 package ISO and protected sentinel were attached read-only; disposable UEFI variable copy only.
+
+The guest deliberately stopped at the dpkg unpacked/not-configured state after `dpkg --unpack` returned 0. `dpkg --audit` then identified both r2 image and headers packages as unpacked. Running `dpkg --configure -a` completed both packages, generated normal and kdump initramfs images, regenerated GRUB entries for r2/r1/generic, and invoked the boot sync hook. Final `dpkg --audit`, package status, and offline `apt-get --no-download check` all passed. The guest then shut down through QMP; QEMU exited 0.
+
+This is a controlled incomplete-transaction recovery check within the same guest boot. It does not simulate killing QEMU, power loss, or termination during a postinst/dracut hook.

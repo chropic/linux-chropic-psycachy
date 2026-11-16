@@ -1,0 +1,12 @@
+Command:
+python3 -m unittest test_sp121_boot_sync test_sp12_select_fallback test_sp12_fat_guest_cleanup test_sp12_fat_sector_map
+Working directory: repository tests/
+Exit status: 0
+Output:
+..........................................
+----------------------------------------------------------------------
+Ran 48 tests in 8.381s
+
+OK
+
+Scope: temporary-file/unit simulation of SP12 boot synchronization, candidate fallback selection, recovery/restore, staged flush and payload-promotion interruptions, marker and recovery rotation behavior, plus FAT cleanup ownership and sector-map parsing. These tests do not simulate physical power loss or validate real FAT hardware behavior.
