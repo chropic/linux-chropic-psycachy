@@ -209,3 +209,38 @@ selection or install. Private screenshot and serial log remain under
 This closes the exact-hash boot-smoke gate only. Disposable installation,
 acknowledgement, promotion, rollback, Secure Boot, and fallback checks remain
 open. No Ventoy replacement or physical-media boot occurred.
+
+## Follow-up — AMD64 Secure Boot install failure and rebuild (2026-11-15)
+
+The next supervised step booted the exact corrected ISO under Microsoft-signed
+OVMF with Secure Boot enabled, then began a first-install run on disposable
+QEMU target `/dev/vda` only. The installer failed in `late-install.sh`: its
+inline parser read the labeled output of `dpkg-deb -f DEB Package Version` as
+bare values and concluded that the offline repository lacked a unique NVIDIA
+driver/DKMS pair. The repository contains one matching pair at version
+`615.71.09-0ubuntu1`; the failure and retained screenshots, log, target hash,
+and sentinel checks are documented in the [AMD64 prompt-fix report](amd64-lifecycle-iso-promptfix-20261115.md).
+
+The parser fix is pushed as `d76342e`. Four focused tests against real fixture
+packages and the full `bash tests/static-check.sh` passed; an independent
+source review found no remaining issue. The failed disposable VM tree was
+removed after its QCOW was verified standalone and clean, and the prior
+unqualified ISO binary was retired after its checksum passed. Its build
+manifest/log and separate failure evidence remain. No physical installation
+target or media was written.
+
+The fixed source has been rebuilt as an 8,052,277,248-byte local ISO with
+SHA-256
+`d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`. Its
+sidecar passes. Independent review confirmed all 282 embedded package hashes
+and manifest records, the embedded parser/source match, the unique NVIDIA pair
+and version, the Canonical-signed source ISO, and byte-identical signed-base
+EFI and casper kernel. The reviewer’s 1.7 GB root-owned `/tmp` extraction was
+removed with sudo. A fresh Secure Boot VM directory was initialized with new
+target/sentinel QCOWs and OVMF variables, then started with this ISO. It has
+reached the guarded disk selector on VNC :14 / monitor 4514, showing only
+`/dev/vda` (`psycachy-linux`) with its checkbox clear. No target has been
+selected and installation has not begun. Local root free space at VM start was
+104,605,257,728 bytes (about 97.44 GiB), 17.44 GiB above the 80 GiB reserve.
+The new image is not staged on Ventoy. B550I and SP12 hardware gates remain
+open.

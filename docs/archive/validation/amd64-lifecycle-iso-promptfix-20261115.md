@@ -128,3 +128,103 @@ not qualify Secure Boot, installed-system boot, acknowledgement, promotion,
 rollback, or physical B550I behavior. The next software gate is the separate
 disposable install and lifecycle sequence; the corrected ISO remains off
 Ventoy.
+
+## Follow-up — Secure Boot install failure and NVIDIA parser fix
+
+The exact ISO recorded above was used for a fresh disposable install attempt
+on 2026-11-15 with QEMU 11.0.3/KVM, 2 vCPUs, 4 GiB RAM, no network, and the
+Microsoft-signed OVMF firmware. The guest reported Secure Boot enabled and
+kernel lockdown `integrity`; it booted the Ubuntu 26.10 live kernel
+`7.3.0-9-generic`. Only disposable target `/dev/vda` (serial
+`psycachy-linux`) was selected. The installer wrote to a standalone VM QCOW;
+the protected sentinel disk and ISO were read-only.
+
+The installer stopped in `/cdrom/psycachy/late-install.sh` with:
+
+```text
+offline repository must identify one matching NVIDIA driver/DKMS pair
+PsyCachy installation: offline repository has no unique NVIDIA package pair
+```
+
+The actual repository contains one matching pair, both version
+`615.71.09-0ubuntu1`: `nvidia-dkms-615-open` and
+`nvidia-driver-615-open`. The builder and source had called
+`dpkg-deb -f DEB Package Version`, whose output labels each value (`Package:`
+and `Version:`); the inline parser treated the whole labeled lines as bare
+values, so it rejected the valid pair. Package contents and their hashes were
+verified. The source now parses those field labels and rejects duplicate
+matching package names. The change was pushed as `d76342e`.
+
+The new `tests/test_iso_nvidia_package_pair.py` exercises the installer’s
+actual inline parser against real fixture packages, covering a matching pair,
+a version mismatch, multiple matching pairs, and duplicate package names.
+All four focused tests and `bash tests/static-check.sh` passed. An independent
+source review found no remaining parser issue.
+
+The failed run's evidence is retained under
+`output/amd64-iso-lifecycle-run-20261115/`. The Secure Boot capture
+`secureboot-live-check.png` has SHA-256
+`598ba2ad721e07f7c4ba97b2cbbe5d89a39f2c7fadf5c20b06653c500ca87d3b`; the
+installer error capture `install-failure-log.png` is
+`bfcc8fe2fe8067f0e3fda3cd0b5c36c0f014a30b65b1cc3046328d3a7f8b2b6c`, and
+`installer-log-failure.png` is
+`5d2cf57f700249cbfbd2ddca77bffd11396ab4221cf63d8e4ca4989f52df8f6a`. The
+serial log hash is `575fe3b7fce03fa94ddbbd45a9b640a2fea6ced38449167ae6b8f32747fca117`.
+The standalone target QCOW was cleanly stopped and checked; its SHA-256 was
+`db25c87ae9a8b3a02f921231bc5b80f949a8f2378e2e1e886542af2ff2e110d4`.
+After shutdown, the protected sentinel still matched
+`b7f1ada63281ed7e5bc7127dffbfc4c91582fab3080133b01a966c7624d97bb6`, and
+both QCOW checks passed. No physical disk, USB, or host firmware/NVRAM was
+written; only the disposable target QCOW and VM-local OVMF variables were
+modified.
+
+The disposable VM tree has since been removed. The previous ISO binary was
+checksum-verified before retirement; its sidecar identity, build manifest and
+build log remain. The separate failure screenshots, serial log and sentinel
+evidence remain intact. The retired `1406eefc…` candidate was never on
+Ventoy; the older pre-fix AMD64 ISO remains there and is still ineligible for
+qualification.
+
+The fixed source has been rebuilt into a new local candidate:
+`output/amd64-iso-lifecycle-20261115-nvidiafix/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+8,052,277,248 bytes, SHA-256
+`d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`. Its
+adjacent `SHA256SUMS` passes. Independent review confirmed that the manifest
+records source revision `d76342ef29401e5081af4dccf8f497bbb4d7a1b9`; the
+embedded `install-target.sh` matches source and its manifest hash
+`e5c452e20be218401d95423664496a4f8c486c31406a3d62c9803de9abde87eb`. The
+review extracted the offline repository and verified all 282 package
+checksums, names, versions, and architectures against the manifest. The
+embedded parser identified the unique `nvidia-dkms-615-open` and
+`nvidia-driver-615-open` pair at `615.71.09-0ubuntu1`, with hashes
+`8e0d84138e877eee24f5b7db3ed292ccd6e384f844776d19945e89d18f3bc0ec` and
+`9efa45da9743159fd361e358c762a1b0cdbd410c7d9bd32f7bc23c8d63ed4dc8`. The
+Canonical signature and pinned source ISO passed verification; the embedded
+EFI directory and `/casper/vmlinuz` match the signed base. The review found no
+artifact-integrity issue.
+
+The successful build log includes non-fatal `dpkg-scanpackages` warnings
+because the private repository uses no override file, APT cache-unlink
+warnings from the unprivileged build namespace, and an xorriso warning that
+the preserved Ubuntu volume label is not a strict ISO 9660 mount-point name.
+The signed-base, package, index, and content checks all passed, and ISO
+creation completed successfully.
+
+The reviewer’s 1.7 GB `/tmp` extraction was removed with sudo after the
+extracted EFI files proved root-owned. A fresh VM directory was initialized
+with a new empty 64 GiB target QCOW, a 64 GiB sentinel QCOW, and fresh
+Microsoft-signed OVMF variables. The user launched the new ISO under QEMU
+11.0.3/KVM with 2 vCPUs, 4 GiB RAM, and no network. Serial output first
+showed the signed GRUB menu; a subsequent VNC capture reached the guarded
+dedicated-disk selector. It lists only `/dev/vda` (`psycachy-linux`, 68.7 GB)
+and the erase checkbox is clear. No target was selected and installation had
+not started. VNC display :14 and monitor port 4514 are active. The selector
+screenshot is retained at
+`output/amd64-iso-lifecycle-run-20261115/secureboot-fixed-candidate-selector.png`,
+SHA-256 `f634de971e7dc4f13394c9737d1ade48d7aaad06a4be7b9dd66db0f4cb13d013`.
+It shows only `/dev/vda` (`psycachy-linux`, 68.7 GB) with the checkbox clear.
+Root free space before boot was 104,606,810,112 bytes (about 97.44 GiB),
+17.44 GiB above the 80 GiB reserve. Continue only on the fresh disposable
+target and preserve the reserve throughout the install and later lifecycle
+scenarios. This candidate remains local and has not been staged on Ventoy or
+physically booted.

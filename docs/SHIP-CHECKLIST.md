@@ -57,6 +57,23 @@ may be superseded; use the private-pilot ledger for current pilot status.
   OVMF boot smoke only; installation and lifecycle remain unqualified. The
   image has not been staged on Ventoy. See the [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
 
+- **2026-11-15 AMD64 Secure Boot install and parser correction:** the exact
+  corrected candidate booted in a Secure Boot-enabled QEMU VM and began a
+  disposable first install, then failed in `late-install.sh` because the
+  NVIDIA pair parser treated labeled `dpkg-deb` fields as bare values. The
+  fix is pushed as `d76342e`; four focused tests and the full static suite
+  passed. The failed QCOW tree and the obsolete local ISO binary were retired
+  after review and checksum verification; separate logs, screenshots,
+  manifest, and build records remain. A fresh candidate was built at
+  `output/amd64-iso-lifecycle-20261115-nvidiafix/`, 8,052,277,248 bytes,
+  SHA-256 `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`;
+  its sidecar and independent audit passed all 282 repository hashes, the
+  exact NVIDIA pair, and signed-base boot payload checks. A fresh Secure Boot
+  VM reached the guarded disk selector, which shows only `/dev/vda`
+  (`psycachy-linux`) with its checkbox clear. The new hash is not on Ventoy
+  and is not installed. No physical disk or media was written.
+  See the [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is

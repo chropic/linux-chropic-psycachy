@@ -16,16 +16,25 @@ and ship checklist.
 ### I-5: Integrate AMD64 activation with the kernel-trial state machine
 
 **State:** Lifecycle implementation and the fail-closed blank-path fix are
-integrated after independent review. Focused source tests and static checks
-passed. The corrected prompt is embedded in a new 8,052,277,248-byte ISO,
-SHA-256 `1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`.
-The signed base, pinned package pair, all 282 repository files, helper
-manifest, UEFI image, base EFI/live kernel, and embedded blank-input behavior
-passed an independent audit. A network-disabled UEFI/KVM smoke of this exact
-hash is pending supervised local KVM access; the older pre-fix smoke does not
-transfer. No disposable installation or activation/reboot/rollback trial or
-target-hardware qualification has run. Current free space is 17.3 GiB above
-the 80 GiB reserve; monitor growth through each VM scenario. See the
+integrated after independent review. The corrected prompt is embedded in the
+previous 8,052,277,248-byte ISO, SHA-256
+`1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`; its
+content audit and network-disabled selector smoke passed. A Secure Boot-enabled
+disposable install then failed at the offline NVIDIA pair check because
+`dpkg-deb -f DEB Package Version` emitted labeled fields that the parser read
+as bare values. The parser fix is pushed as `d76342e`; four focused tests and
+the full static suite passed. A fresh 8,052,277,248-byte candidate has now been
+built at
+`output/amd64-iso-lifecycle-20261115-nvidiafix/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+SHA-256 `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`;
+its sidecar and independent artifact review pass. The audit verified all 282
+embedded package hashes/manifest records, the parser/source match and unique
+NVIDIA pair, and signed-base EFI/casper identity. A fresh Secure Boot VM is
+now at the guarded disk selector showing only `/dev/vda` (`psycachy-linux`)
+with its checkbox clear. The new hash has
+not yet been installed or written to Ventoy. Keep the failed result attached
+to the previous hash; do not transfer its successful earlier selector smoke
+to the new hash. See the
 [implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
 [prior ISO record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
 [new prompt-fix build and audit](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md),

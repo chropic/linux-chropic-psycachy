@@ -112,3 +112,31 @@ SP12 final51 installer, v4 fallback ISO, private inputs, and evidence trees
 were all kept. No byte-identical full ISO copy was found. The project's
 `.agents` and `.codex` directories are about 1.5 MB and 8 KB respectively and
 remain intact.
+
+## Follow-up — AMD64 failed iteration retirement (2026-11-15)
+
+After the Secure Boot installation attempt failed on the parser bug, the
+standalone disposable VM directory
+`output/amd64-iso-lifecycle-vm-20261115-promptfix/` was removed after checking
+that its target QCOW had no backing file, had a clean `qemu-img check`, was
+not mounted or open, and had no active QEMU process. It contained a
+10,711,855,104-byte partially written target QCOW, VM-local firmware
+variables, and a small log; the separate screenshots, serial output, hash
+records, manifest, protected sentinel, and retained VM bases were preserved.
+The user-run cleanup increased `/` free space from 93,913,972,736 to
+104,626,585,600 bytes.
+
+The failed candidate ISO was then checksum-verified (`SHA256SUMS: OK`) before
+its local binary was retired. It was never staged on Ventoy; its build
+manifest, log, checksum identity, and failure report remain. No other ISO or
+recovery artifact was removed. After this cleanup, local `/` had
+104,619,188,224 bytes free. The new fixed-source candidate
+`output/amd64-iso-lifecycle-20261115-nvidiafix/` is retained at its verified
+SHA-256; it is the only local image for the next install attempt.
+
+The independent ISO audit temporarily extracted 1.7 GB of ISO contents to
+`/tmp/amd64-iso-audit.3XMyBJHE` on tmpfs. The extracted EFI files were
+root-owned, so the user removed that exact scratch directory with `sudo`; the
+`/tmp` tmpfs returned to about 16.16 GB available. The new Secure Boot VM
+uses freshly initialized sparse target and sentinel QCOWs; no target data was
+written when QEMU first reached the signed GRUB menu.
