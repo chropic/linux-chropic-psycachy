@@ -268,6 +268,56 @@ class TrialStateHelpersTests(unittest.TestCase):
             with self.assertRaisesRegex(trial.TrialError, "not confirmed enrolled"):
                 trial._require_enrolled_certificate(pathlib.Path("/tmp/module.der"))
 
+    def test_per_install_owner_certificates_bind_once_to_the_installed_pin(self):
+        kernel_digest = "a" * 64
+        module_digest = "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            pin_path = root / "amd64-kernel-pin.json"
+            pin = json.loads((ROOT / "config/amd64-iso-kernel.json").read_text(encoding="utf-8"))
+            pin_path.write_text(json.dumps(pin), encoding="utf-8")
+            key_dir = root / "secureboot"
+            key_dir.mkdir(mode=0o700)
+            for name in ("kernel.pem", "kernel.der", "module.der", "kernel.key", "module.key"):
+                path = key_dir / name
+                path.write_text("test material", encoding="ascii")
+                path.chmod(0o600)
+
+            def fake_command(argv, *, allow_failure=False):
+                if "-subject" in argv:
+                    subject = ("subject=CN=PsyCachy Secure Boot Kernel\n"
+                               if any("kernel.pem" in arg for arg in argv) else
+                               "subject=CN=PsyCachy DKMS Module Signing\n")
+                    return subprocess.CompletedProcess(argv, 0, subject, "")
+                if "-pubkey" in argv or argv[1] == "pkey":
+                    return subprocess.CompletedProcess(argv, 0, "same public key\n", "")
+                raise AssertionError(argv)
+
+            def fake_fingerprint(path, *, der):
+                return module_digest if path.name == "module.der" else kernel_digest
+
+            with mock.patch.object(trial, "require_root"), \
+                    mock.patch.object(trial, "_require_root_owned_path"), \
+                    mock.patch.object(trial, "_certificate_sha256", side_effect=fake_fingerprint), \
+                    mock.patch.object(trial, "command", side_effect=fake_command):
+                bound = trial.bind_owner_certificates(pin_path, key_dir)
+                self.assertEqual(bound, {
+                    "certificate_binding": "bound-per-install",
+                    "kernel_certificate_sha256": kernel_digest,
+                    "module_certificate_sha256": module_digest,
+                })
+                saved = json.loads(pin_path.read_text(encoding="utf-8"))
+                self.assertEqual(saved["secure_boot"]["certificate_binding"], "bound-per-install")
+                self.assertEqual(saved["secure_boot"]["kernel_certificate_sha256"], kernel_digest)
+                self.assertEqual(saved["secure_boot"]["module_certificate_sha256"], module_digest)
+                with self.assertRaisesRegex(trial.TrialError, "not awaiting its one-time"):
+                    trial.bind_owner_certificates(pin_path, key_dir)
+
+    def test_secure_boot_identity_refuses_an_unbound_per_install_pin(self):
+        pin = json.loads((ROOT / "config/amd64-iso-kernel.json").read_text(encoding="utf-8"))
+        with self.assertRaisesRegex(trial.TrialError, "not bound to this installation"):
+            trial.verify_secure_boot_identity(pin, "7.3.1-psycachy")
+
     def test_secure_boot_enrollment_accepts_known_keyring_diagnostic_with_exact_success(self):
         cert = pathlib.Path("/tmp/owner module.der")
         result = subprocess.CompletedProcess(
@@ -436,6 +486,7 @@ class TrialStateHelpersTests(unittest.TestCase):
             pin = {
                 "kernel_payload_sha256": hashlib.sha256(payload).hexdigest(),
                 "secure_boot": {
+                    "certificate_binding": "bound-per-install",
                     "kernel_certificate_sha256": kernel_digest,
                     "module_certificate_sha256": module_digest,
                     "required_module_signers": {"nvidia": "Test DKMS Signer"},
@@ -1019,10 +1070,9 @@ class PinValidationTests(unittest.TestCase):
         self.assertEqual(pin["architecture"], "amd64")
         self.assertEqual(pin["kernel_release"], "7.3.1-psycachy")
         self.assertEqual(len(pin["packages"]), 2)
-        self.assertEqual(
-            pin["secure_boot"]["kernel_certificate_sha256"],
-            "83b6a49f440a53cf6e08bae05a99ce6c6d11d2a47cd7130f1f95ef2b40f4e2da",
-        )
+        self.assertEqual(pin["secure_boot"]["certificate_binding"], "per-install")
+        self.assertIsNone(pin["secure_boot"]["kernel_certificate_sha256"])
+        self.assertIsNone(pin["secure_boot"]["module_certificate_sha256"])
         self.assertEqual(pin["secure_boot"]["required_loaded_modules"], ["nvidia"])
 
     def test_current_arm64_pin_parses_as_candidate(self):

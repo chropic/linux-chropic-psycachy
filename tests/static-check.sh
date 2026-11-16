@@ -28,9 +28,10 @@ for script in build.sh config/source-pin.sh targets/sp121-arm64/prepare.sh targe
   tools/install-phase2-amd64-rebuild.sh; do
   bash -n "$script"
 done
-python3 -m py_compile tools/config_diff.py tools/deb_dependencies.py tools/audit-release-policy.py tools/audit-sp121-config.py tools/audit-arm64-modules.py tools/kernel_identity.py tools/sp12_dtb_build_id.py iso/select-disk.py iso/kernel_package_pin.py iso/verify-kernel-packages.py iso/verify-archive-packages.py iso/arm64_iso.py iso/build-sp12-live.py tests/test_release_policy.py tests/test_kernel_package_pin.py tests/test_kernel_identity.py tests/test_dtb_build_id.py tests/test_sp121_config_audit.py tests/test_arm64_module_audit.py tests/test_arm64_iso_pin.py tests/test_arm64_iso_builder.py tests/test_iso_nvidia_package_pair.py tests/test_iso_vm_protected_disk.py tests/test_sp12_fat_guest_cleanup.py tests/iso-no-io-uring.py tests/arm64-kernel-smoke.py tests/kernel-policy-smoke.py tools/verify-arm64-packages.py
+python3 -m py_compile tools/config_diff.py tools/deb_dependencies.py tools/audit-release-policy.py tools/audit-sp121-config.py tools/audit-arm64-modules.py tools/kernel_identity.py tools/sp12_dtb_build_id.py iso/select-disk.py iso/amd64_grub.py iso/kernel_package_pin.py iso/verify-kernel-packages.py iso/verify-archive-packages.py iso/arm64_iso.py iso/build-sp12-live.py tests/test_amd64_grub_menu.py tests/test_release_policy.py tests/test_kernel_package_pin.py tests/test_kernel_identity.py tests/test_dtb_build_id.py tests/test_sp121_config_audit.py tests/test_arm64_module_audit.py tests/test_arm64_iso_pin.py tests/test_arm64_iso_builder.py tests/test_iso_nvidia_package_pair.py tests/test_iso_vm_protected_disk.py tests/test_sp12_fat_guest_cleanup.py tests/iso-no-io-uring.py tests/arm64-kernel-smoke.py tests/kernel-policy-smoke.py tools/verify-arm64-packages.py
 python3 -m py_compile tools/phase2-kernel-trial.py tests/test_phase2_kernel_trial.py
 python3 tests/test_phase2_kernel_trial.py
+python3 tests/test_amd64_grub_menu.py
 legacy_install_status=0
 bash tools/install-phase2-amd64-rebuild.sh >/dev/null 2>&1 || legacy_install_status=$?
 [[ "$legacy_install_status" == 64 ]]
@@ -63,6 +64,7 @@ python3 tests/test_source_tree_hash.py
 python3 tests/test_archive_packages.py
 python3 tests/test_iso_late_logging.py
 python3 tests/test_iso_select_disk.py
+python3 tests/test_iso_activate_promotion_prompt.py
 python3 tests/test_sp12_live_builder.py
 python3 tests/test_arm64_iso_vm.py
 python3 tests/test_iso_vm_protected_disk.py

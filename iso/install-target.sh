@@ -104,6 +104,7 @@ grub-editenv list | grep -Fxq "saved_entry=$submenu>$entry" || die 'could not sa
 
 # Keys belong to this installation and are generated before any DKMS builds.
 bash "$helper" init
+"$trial" bind-owner-certificates --pin /var/lib/psycachy/amd64-kernel-pin.json
 bash "$helper" configure-dkms
 bash "$override"
 mapfile -t nvidia_packages < <(python3 - "$repo" /var/lib/psycachy/nvidia-package-identity.json <<'PY'

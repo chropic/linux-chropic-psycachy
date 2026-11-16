@@ -791,6 +791,83 @@ def _require_enrolled_certificate(path: pathlib.Path) -> None:
         raise TrialError(f"Owner signing certificate is not confirmed enrolled: {path}")
 
 
+def _require_root_owned_path(path: pathlib.Path, *, directory: bool = False,
+                             private: bool = False) -> None:
+    try:
+        info = path.lstat()
+    except OSError as exc:
+        raise TrialError(f"Required local signing file is missing: {path}") from exc
+    expected_type = stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode)
+    if stat.S_ISLNK(info.st_mode) or not expected_type or info.st_uid != 0:
+        raise TrialError(f"Local signing path is not a root-owned safe file: {path}")
+    forbidden = 0o077 if private else 0o022
+    if info.st_mode & forbidden:
+        raise TrialError(f"Local signing path has unsafe permissions: {path}")
+
+
+def bind_owner_certificates(pin_path: pathlib.Path,
+                            key_dir: pathlib.Path = SECUREBOOT_KEY_DIR) -> dict:
+    """Bind fresh per-install Secure Boot certificates into the copied kernel pin once."""
+    require_root()
+    if pin_path.is_symlink():
+        raise TrialError("Refusing symlinked local kernel pin")
+    pin_path = pin_path.absolute()
+    parent = pin_path.parent
+    _require_root_owned_path(parent, directory=True)
+    _require_root_owned_path(pin_path)
+    if parent.stat().st_mode & 0o022:
+        raise TrialError("Local kernel pin directory is writable by non-root users")
+    if key_dir.is_symlink():
+        raise TrialError("Refusing symlinked local signing-key directory")
+    _require_root_owned_path(key_dir, directory=True, private=True)
+
+    pin = read_pin(pin_path)
+    secure = pin.get("secure_boot")
+    if not isinstance(secure, dict) or secure.get("certificate_binding") != "per-install":
+        raise TrialError("Kernel pin is not awaiting its one-time per-install certificate binding")
+    if secure.get("kernel_certificate_sha256") is not None or secure.get("module_certificate_sha256") is not None:
+        raise TrialError("Kernel pin already contains owner certificate hashes; refusing rebinding")
+
+    kernel_pem = key_dir / "kernel.pem"
+    kernel_der = key_dir / "kernel.der"
+    module_der = key_dir / "module.der"
+    kernel_key = key_dir / "kernel.key"
+    module_key = key_dir / "module.key"
+    for path in (kernel_pem, kernel_der, module_der):
+        _require_root_owned_path(path, private=True)
+    for path in (kernel_key, module_key):
+        _require_root_owned_path(path, private=True)
+
+    kernel_subject = command([
+        "openssl", "x509", "-in", str(kernel_pem), "-noout", "-subject", "-nameopt", "RFC2253",
+    ])
+    module_subject = command([
+        "openssl", "x509", "-inform", "DER", "-in", str(module_der), "-noout", "-subject", "-nameopt", "RFC2253",
+    ])
+    if kernel_subject.stdout.strip() != "subject=CN=PsyCachy Secure Boot Kernel":
+        raise TrialError("Local kernel certificate subject does not match the PsyCachy owner identity")
+    if module_subject.stdout.strip() != "subject=CN=PsyCachy DKMS Module Signing":
+        raise TrialError("Local module certificate subject does not match the PsyCachy owner identity")
+    kernel_public = command(["openssl", "x509", "-in", str(kernel_pem), "-pubkey", "-noout"])
+    kernel_key_public = command(["openssl", "pkey", "-in", str(kernel_key), "-pubout"])
+    module_public = command(["openssl", "x509", "-inform", "DER", "-in", str(module_der), "-pubkey", "-noout"])
+    module_key_public = command(["openssl", "pkey", "-in", str(module_key), "-pubout"])
+    if kernel_public.stdout != kernel_key_public.stdout or module_public.stdout != module_key_public.stdout:
+        raise TrialError("Local Secure Boot certificate does not match its private signing key")
+
+    kernel_digest = _certificate_sha256(kernel_pem, der=False)
+    if _certificate_sha256(kernel_der, der=True) != kernel_digest:
+        raise TrialError("Local kernel certificate PEM and DER identities differ")
+    module_digest = _certificate_sha256(module_der, der=True)
+    secure["kernel_certificate_sha256"] = kernel_digest
+    secure["module_certificate_sha256"] = module_digest
+    secure["certificate_binding"] = "bound-per-install"
+    write_state(pin_path, pin)
+    return {"certificate_binding": secure["certificate_binding"],
+            "kernel_certificate_sha256": kernel_digest,
+            "module_certificate_sha256": module_digest}
+
+
 def _required_module_signers(pin: dict) -> dict[str, str]:
     secure = pin.get("secure_boot")
     if not isinstance(secure, dict):
@@ -938,6 +1015,8 @@ def verify_secure_boot_identity(pin: dict, release: str, *, image_path: pathlib.
     secure = pin.get("secure_boot")
     if not isinstance(secure, dict):
         raise TrialError("Secure Boot owner signing identities are not pinned; refusing")
+    if secure.get("certificate_binding") != "bound-per-install":
+        raise TrialError("Secure Boot owner certificates are not bound to this installation; refusing")
     expected_kernel = secure.get("kernel_certificate_sha256")
     expected_module = secure.get("module_certificate_sha256")
     for label, digest in (("kernel", expected_kernel), ("module", expected_module)):
@@ -1600,6 +1679,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-file", type=pathlib.Path, default=DEFAULT_STATE)
     subparsers = parser.add_subparsers(dest="action", required=True)
+    bind = subparsers.add_parser("bind-owner-certificates", help=argparse.SUPPRESS)
+    bind.add_argument("--pin", type=pathlib.Path, default=PIN_PATH)
     prep = subparsers.add_parser("prepare", help="verify a pin and schedule one GRUB boot")
     prep.add_argument("--pin", type=pathlib.Path, required=True)
     prep.add_argument("--packages", type=pathlib.Path, required=True)
@@ -1638,6 +1719,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.action == "prepare":
             state = prepare(args)
+        elif args.action == "bind-owner-certificates":
+            state = bind_owner_certificates(args.pin)
         elif args.action == "acknowledge":
             state = acknowledge(args)
         elif args.action == "promote":

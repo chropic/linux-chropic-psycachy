@@ -48,41 +48,15 @@ done
 install -m 755 "$root/iso/late-install.sh" "$work/payload/late-install.sh"
 install -m 755 "$root/iso/offline-install.sh" "$work/payload/offline-install.sh"
 install -m 755 "$root/iso/select-disk.py" "$work/payload/select-disk.py"
+install -m 644 "$root/iso/autoinstall.yaml" "$work/payload/autoinstall.yaml"
 install -m 755 "$root/tools/psycachy-secureboot.sh" "$work/payload/helpers/psycachy-secureboot.sh"
 install -m 755 "$root/tools/configure-nvidia-dkms.sh" "$work/payload/helpers/configure-nvidia-dkms.sh"
 install -m 755 "$root/tools/phase2-kernel-trial.py" "$work/payload/helpers/phase2-kernel-trial.py"
 install -m 644 "$root/config/amd64-iso-kernel.json" "$work/payload/helpers/amd64-kernel-pin.json"
 install -m 644 "$root/iso/psycachy-activation.desktop" "$work/payload/helpers/psycachy-activation.desktop"
 xorriso -osirrox on -indev "$source_iso" -extract /boot/grub/grub.cfg "$work/grub.cfg"
-python3 - "$work/grub.cfg" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-changed = 0
-kernel_commands = 0
-for index, line in enumerate(lines):
-    stripped = line.lstrip()
-    command = stripped.split(None, 1)[0] if stripped else ""
-    if command not in {"linux", "linuxefi"}:
-        if "---" in line:
-            raise SystemExit("pinned GRUB config has a separator outside a kernel command")
-        continue
-    kernel_commands += 1
-    if "---" not in line:
-        raise SystemExit("pinned GRUB kernel command has no --- argument separator")
-    before, after = line.split("---", 1)
-    if "autoinstall" not in before.split():
-        lines[index] = before.rstrip() + " autoinstall ---" + after
-        changed += 1
-if kernel_commands < 1:
-    raise SystemExit("pinned GRUB config has no kernel commands to enable autoinstall")
-path.write_text("".join(lines), encoding="utf-8")
-print(f"Enabled autoinstall on {kernel_commands} GRUB kernel command lines ({changed} changed).")
-PY
+python3 "$root/iso/amd64_grub.py" "$work/grub.cfg"
 xorriso -indev "$source_iso" -outdev "$iso" -boot_image any replay \
-  -map "$root/iso/autoinstall.yaml" /autoinstall.yaml \
   -map "$work/grub.cfg" /boot/grub/grub.cfg \
   -map "$work/payload" /psycachy -commit -end
 

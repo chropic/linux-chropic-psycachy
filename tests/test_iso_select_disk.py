@@ -51,6 +51,33 @@ class DiskSelectionTest(unittest.TestCase):
             self.assertEqual(SELECT.choose_disk([], [disk], Path("pin.json"), Path("mode.json")), disk)
             write.assert_called_once_with(Path("mode.json"), mode)
 
+    def test_cancelling_disk_selection_never_records_activation_or_storage(self):
+        disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
+        with mock.patch.object(SELECT, "dialog", return_value=(1, "")), \
+                mock.patch.object(SELECT, "select_activation_mode") as choose_mode, \
+                mock.patch.object(SELECT, "write_activation_mode") as write:
+            with self.assertRaisesRegex(ValueError, "cancelled or empty"):
+                SELECT.choose_disk([], [disk], Path("pin.json"), Path("mode.json"))
+            choose_mode.assert_not_called()
+            write.assert_not_called()
+
+    def test_cancelling_mode_or_erase_never_records_activation(self):
+        disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
+        with mock.patch.object(SELECT, "dialog", return_value=(1, "")), \
+                mock.patch.object(SELECT, "write_activation_mode") as write:
+            with self.assertRaisesRegex(ValueError, "explicit installation mode"):
+                SELECT.select_activation_mode([], disk, Path("pin.json"), Path("."))
+            write.assert_not_called()
+
+        mode = {"schema_version": 1, "mode": "first-install", "disk_serial": "test-123",
+                "operator_confirmed_no_displaced_candidate_payload": True}
+        with mock.patch.object(SELECT, "dialog", side_effect=[(0, "/dev/test"), (1, "")]), \
+                mock.patch.object(SELECT, "select_activation_mode", return_value=mode), \
+                mock.patch.object(SELECT, "write_activation_mode") as write:
+            with self.assertRaisesRegex(ValueError, "erasure was not confirmed"):
+                SELECT.choose_disk([], [disk], Path("pin.json"), Path("mode.json"))
+            write.assert_not_called()
+
     def test_mode_omission_fails_before_any_erase_decision_is_recorded(self):
         disk = {"path": "/dev/test", "model": "Test", "serial": "test-123", "size": 64000000000}
         with mock.patch.object(SELECT, "dialog", side_effect=[(0, "/dev/test"), (0, "ERASE")]), \
