@@ -1,0 +1,29 @@
+ARM64 v4 installed-target no-media boot continuation
+Date: 2026-11-12 (host CS-B550i, x86_64)
+
+Scope and isolation
+- Source installed target: ../vm/target.qcow2
+- Source target SHA-256 before/after this run: 29e3a9c6be1d36b326192088483686860e794239ed4d877c0b71213e88113d72
+- Source target is the retained 64 GiB qcow2 installed by v4 attempt 8. It was not opened as the writable QEMU target.
+- Test target: target-overlay.qcow2, qcow2 copy-on-write overlay backed by the source above; 58 MiB allocated after orderly shutdown.
+- Firmware variables: copied from ../vm/uefi-vars.fd to this directory before launch. Copy SHA-256 after the run: 1f39efb89c7f37fb46f1dc306be3a988f3c57f5d223268fbbea11073f35713e8.
+- No installer ISO, no network, and no physical or protected disk attached. Only the overlay and copied UEFI variables were writable.
+- QEMU: custom repository artifact QEMU 11.1.3; booted ARM64 TCG on x86_64. AAVMF_CODE.no-secboot.fd was read-only.
+
+Observed result
+- UEFI loaded Boot0006 "Ubuntu" from the installed disk's GPT ESP using \\EFI\\ubuntu\\shimaa64.efi. The EFI loader started without installation media.
+- Serial log shows root filesystem fsck and mount succeeded, the ESP UUID 4053-1CD8 was found, fsck succeeded, and /boot/efi mounted.
+- Cloud-init, NetworkManager, and GDM started. The guest reached a ttyAMA0 login prompt and then completed a QMP ACPI powerdown; serial log ends with systemd poweroff and "reboot: Power down".
+- This proves a no-media UEFI boot to the installed userspace/login path. It does not verify package pins, DTB equality, package hooks, update/rollback, or a visible graphical session.
+- Startup logged dependency failures for several SSSD sockets; no root filesystem, ESP, GRUB, kernel, or initramfs failure was observed.
+
+Postchecks
+- QEMU exited cleanly (exit code 0); no QEMU process remains.
+- qemu-img check on target-overlay.qcow2: no errors.
+- Source installed target SHA-256 remains unchanged at the recorded value.
+- Overlay SHA-256: 378f0d90b82788d8f83d186076b6bfadf6a6811ffb8d2b433236376ad4aced80
+- UEFI variables copy SHA-256: 1f39efb89c7f37fb46f1dc306be3a988f3c57f5d223268fbbea11073f35713e8
+- Raw serial evidence: serial.log. Frame captures: screen-initial.png, screen-after-20s.png, screen-after-50s.png, screen-after-90s.png. The VNC display was black under the -display none invocation; serial provides the boot evidence.
+
+Next safe step
+- Continue only on this overlay/copy. To inspect exact installed packages and boot-sync state, use a guest filesystem reader or a local console on this clone. The update/interrupted-update/rollback tests are still outstanding.

@@ -11,72 +11,52 @@ Current private-pilot gate status is maintained in the
 work only; artifact and hardware qualification evidence stays in the ledger
 and ship checklist.
 
+The 2026-11-16 storage reclamation and SP12 live-boot diagnostics are
+validation-only; their current boundaries are in the [cleanup report](archive/validation/storage-cleanup-20261116.md),
+[boot report](archive/validation/sp12-firmware-boot-attempt-20261116.md),
+[private-pilot handoff](archive/validation/private-pilot-handoff-20261116.md),
+and [ship checklist](SHIP-CHECKLIST.md). The observed kernel and DTB match the
+final51 pins; no source change follows from this boot result.
+
 ## Active or conditional code work
 
 ### I-5: Integrate AMD64 activation with the kernel-trial state machine
 
-**State:** Lifecycle implementation and the fail-closed blank-path fix are
-integrated after independent review. The corrected prompt is embedded in the
-previous 8,052,277,248-byte ISO, SHA-256
-`1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85`; its
-content audit and network-disabled selector smoke passed. A Secure Boot-enabled
-disposable install then failed at the offline NVIDIA pair check because
-`dpkg-deb -f DEB Package Version` emitted labeled fields that the parser read
-as bare values. The parser fix is pushed as `d76342e`; four focused tests and
-the full static suite passed. A fresh 8,052,277,248-byte candidate has now been
-built at
-`output/amd64-iso-lifecycle-20261115-nvidiafix/psycachy-ubuntu-26.10-desktop-amd64.iso`,
-SHA-256 `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`;
-its sidecar and independent artifact review pass. The audit verified all 282
-embedded package hashes/manifest records, the parser/source match and unique
-NVIDIA pair, and signed-base EFI/casper identity. The exact new hash completed
-a network-disabled first installation on only `/dev/vda` (`psycachy-linux`)
-and booted from that disk after the ISO was ejected. The target QCOW integrity
-and protected-sentinel checks passed. A later ISO re-entry launched the
-installer again and displayed an autoinstall command failure; its technical
-details and target-write extent were not captured. The ISO was ejected, and
-the existing disk booted to GDM again. Source review found the build adds
-`autoinstall` to both GRUB entries. A subsequent network-disabled, read-only
-QEMU boot removed that argument with a one-time GRUB edit and reached the
-Ubuntu desktop, but an installer-failure dialog still appeared with the same
-autoinstall command error. No detailed log or screenshot was retained, so the
-cause and intended live-session behavior remain unresolved. The selector
-still requires explicit disk, mode, and `ERASE` confirmation before storage is
-configured. The image is not staged on Ventoy or physically booted. Keep the
-earlier parser failure attached to its previous hash; do not transfer its
-selector or failure results to this new hash. See the
-[implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
-[prior ISO record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
-[new prompt-fix build and audit](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md),
-and [prior boot record](archive/validation/amd64-lifecycle-iso-liveboot-20261114.md).
-The implementation now provides a unified `prepare -> candidate boot ->
-acknowledge -> promote` flow, explicit first-install and replacement records,
-fallback preservation, package/signing identity separation, runtime module
-signature/trust checks, and rollback from acknowledged or promoted state.
-The health attestation is unsigned and root-controlled: it is an auditable
-operator workflow record, not cryptographic proof of independent approval.
-Keep the userspace timeout limitation for pre-userspace hangs documented.
+**State:** Lifecycle implementation, NVIDIA package-pair parsing, and the
+fail-closed blank-attestation-path fix are integrated. The current candidate
+was built and independently audited on 2026-11-16:
+`output/amd64-iso-lifecycle-20261116-perinstall-guarded-rescue/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+8,052,277,248 bytes, SHA-256
+`908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`. Review
+matched all 36 source-manifest entries, 282 repository hashes, 13 embedded
+helpers, per-install pin, guarded Try/Rescue menu, signed-base EFI/casper
+payloads, and UEFI boot image. The exact-hash default Try/Rescue path reached
+the Ubuntu live desktop in a network-disabled, diskless VM. It has not yet
+been freshly installed, re-entered as repeat media, or run through the
+lifecycle. See the
+[2026-11-16 report](archive/validation/amd64-perinstall-guarded-rescue-20261116.md).
 
-Independent review found that the embedded activation frontend's
-`Reviewed health attestation path (blank to stop)` prompt substituted the
-default path for blank input. Although a fresh unreviewed template is rejected
-by the helper, completing that file while the prompt waits could make Enter
-promote it. The source now fails closed on blank and has executable regressions
-for blank and explicit paths. The old ISO on Ventoy embeds the pre-fix prompt
-and remains ineligible for lifecycle qualification. The corrected local image
-passed the independent content audit, disposable first installation, and
-detached first boot to GDM; the old parser failure did not recur. A later ISO
-re-entry and a separate read-only live-session boot both displayed an
-autoinstall command failure; the cause still needs diagnosis. The installed
-target booted to GDM again after the ISO was ejected.
-Secure Boot state inside the installed guest, local MOK enrollment/trust,
-candidate activation, acknowledgement, promotion, timeout rollback, explicit
-rollback, replacement mode and tamper refusals are validation gates rather
-than remaining code work. **Remaining:** audit the repeated-media failure,
-inspect installed state, then complete the disposable UEFI lifecycle sequence
-with the generic fallback preserved and run exact-candidate B550I checks.
-These remain separate from the passing software tests and build evidence in
-[qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
+Source checks passed: 40 phase2 trial tests, 6 GRUB-menu tests, 10
+disk-selector tests, and `tests/static-check.sh` (the root-only `mokutil`
+probe was skipped). A separate prior-image run on the `per-install-pin` ISO
+(SHA-256
+`3c8d488be56c0b94e3a535c6fd3cfed9b84c55d65a41fc15056be43ffe1abb36`)
+confirmed Secure Boot and both MOK enrollments, then `PREPARE` scheduled a
+one-shot trial. The helper recorded `timed_out` because required `nvidia` was
+not loaded, and the guest was on the `7.3.0-10-generic` fallback. That VM had
+no NVIDIA device, did not demonstrate candidate runtime, and did not perform
+acknowledgement or promotion. Its results do not transfer to the current ISO.
+
+The implementation provides `prepare -> candidate boot -> acknowledge ->
+promote`, explicit first-install/replacement records, fallback preservation,
+package/signing identity separation, runtime module signature/trust checks,
+and rollback from acknowledged or promoted state. The health attestation is
+unsigned and root-controlled, so it is an auditable workflow record rather
+than cryptographic proof of independent approval. The timeout is a userspace
+guard and cannot recover pre-userspace hangs. Remaining work is validation on
+the exact current ISO and target hardware; see the
+[qualification ledger](PRIVATE-PILOT-QUALIFICATION.md) and
+[ship checklist](SHIP-CHECKLIST.md).
 
 ### I-6: Reproduce ARM64 changed-release boot-payload updates
 
@@ -141,14 +121,18 @@ after review and checksum verification. The signed base, local private
 support inputs, active package archives, and old live-only recovery image are
 retained. The user ran the guarded cleanup for seven exact SP12 staging and
 scratch trees; the remote root now has 223,941,722,112 bytes free. The
-combined image is on Ventoy with both destination read-back checks passed, but
-has not booted on physical SP12.
+combined image is on Ventoy with both destination read-back checks passed.
+The user later reported a physical live boot whose captured kernel and DTB
+build ID match the final51 pins; the capture has no in-session ISO hash. The
+live-device matrix, external install, and installed-system qualification
+remain open.
 
 **Done when:** menu/payload pins and target support hashes verify, unattended
 installation is not possible from the default entry, generic diagnostic and
 guarded installer paths pass focused tests, and the rebuilt private image has
 frozen checksums. These software, content-audit, and media-staging checks now
-pass. Native SP12 runtime/rescue and installed-system qualification remain.
+pass. The user has confirmed native live startup with matching kernel/DTB
+identity; device/rescue checks and installed-system qualification remain.
 
 ### I-8: Fail closed on the AMD64 native CPU target
 
@@ -468,14 +452,14 @@ initramfs generation, then timed out before dpkg/hook completion. The generic
 `7.3.0-9-generic` entry reached userspace. Version-upgrade, interrupted-update,
 and rollback checks remain open. The retained target and firmware-variable
 hashes remained unchanged; exact evidence is in
-`output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/pinned-kernel-review.txt`.
+`archive/validation/artifacts/arm64-v4-reinstall-diagnostics-20261116/vm-package-reinstall-20261112/pinned-kernel-review.txt`.
 A separate 1,200-second reinstall remained active in dracut at timeout
 (194 MiB / 3,901 staged files; the installed initrd was unchanged at the last
 sample). This shows slow active work but does not establish dpkg or boot-sync
 hook completion; package after-state and interruption recovery remain
 unverified. Its disposable overlay passed `qemu-img check`, and retained
 target/UEFI state remained unchanged. Review:
-`output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/attempt7-long-reinstall/reinstall-review.txt`.
+`archive/validation/artifacts/arm64-v4-reinstall-diagnostics-20261116/vm-package-reinstall-20261112/attempt7-long-reinstall/reinstall-review.txt`.
 Attempt-6 debug-shell review SHA-256 is
 `01f651affddbd46002d3d4dd08def6e6b053ea4e256512d5bfcb8592d8ddee9a`; its
 serial log SHA-256 is

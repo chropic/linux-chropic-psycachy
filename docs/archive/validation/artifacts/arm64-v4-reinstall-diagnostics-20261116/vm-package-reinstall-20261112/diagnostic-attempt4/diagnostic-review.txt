@@ -1,0 +1,27 @@
+ARM64 v4 candidate boot stall diagnosis — disposable clone — 2026-11-12
+
+This was a materially different fresh COW clone with systemd and dracut debug logging enabled. No retained disk, retained UEFI vars, or physical device was written.
+
+Protected sources (before and after):
+- retained target SHA256: 29e3a9c6be1d36b326192088483686860e794239ed4d877c0b71213e88113d72
+- retained UEFI vars SHA256: ed3bc0c0a050f40f4c33eee325e242f8daa2bc2358c172ef5cd691961eb64175
+- diagnostic clone vars SHA256: 1f39efb89c7f37fb46f1dc306be3a988f3c57f5d223268fbbea11073f35713e8
+- diagnostic overlay SHA256 after QEMU exit: 3c03d4ad1f957b038e55aba04463e601802c706850dabcfbd19a3cc719113d56
+- qemu-img check: no errors found
+
+Boot selection: manual one-time GRUB CLI load of /boot/vmlinuz-7.3.1-psycachy-sp121 and /boot/initrd.img-7.3.1-psycachy-sp121; kernel args included root=/dev/vda2 ro console=ttyAMA0 systemd.log_level=debug systemd.log_target=console systemd.show_status=1 rd.debug rd.systemd.debug_shell=ttyAMA0. Candidate kernel identified itself as Linux version 7.3.1-psycachy-sp121.
+
+The verbose serial log falsifies the initial impression that systemd-tmpfiles-setup-dev.service was hung:
+- Kernel enumerated `virtio_blk` as vda (68.7 GB) and partition table as vda1/vda2.
+- `systemd-tmpfiles-setup-dev-early.service` ran `systemd-tmpfiles --prefix=/dev --create --boot --graceful` and exited 0/SUCCESS.
+- `systemd-tmpfiles-setup-dev.service` ran `systemd-tmpfiles --prefix=/dev --create --boot` and exited 0/SUCCESS; job finished result=done.
+- `systemd-fsck-root.service` finished successfully for /dev/vda2.
+- `sysroot.mount` mounted /sysroot successfully.
+- `initrd-switch-root.target` was reached and `initrd-switch-root.service` executed the switch-root command.
+- Host boot proceeded into cloud-init-local (which completed), AppArmor startup, and systemd-rfkill socket setup. Thus the apparent stop at tmpfiles in the earlier low-verbosity/short serial observation was progress visibility/slow TCG boot, not an observed tmpfiles or root block-device failure.
+
+The initrd unit files were read from the already extracted initrd archive `/tmp/luna-main-initrd.cpio`. For `systemd-tmpfiles-setup-dev-early.service`, the unit has `DefaultDependencies=no`, `Before=sysinit.target local-fs-pre.target systemd-udevd.service`, `Wants=local-fs-pre.target`, and conflicts/before shutdown and initrd-switch-root targets. The regular `systemd-tmpfiles-setup-dev.service` has `DefaultDependencies=no`, `After=systemd-tmpfiles-setup-dev-early.service`, `Before=sysinit.target local-fs-pre.target systemd-udevd.service`, `Wants=local-fs-pre.target`, conflicts/before shutdown and initrd-switch-root, and the `systemd-tmpfiles --prefix=/dev --create --boot` ExecStart.
+
+`rd.systemd.debug_shell=ttyAMA0` attempted an initrd shell but it failed with 203/EXEC because that initrd lacks `/usr/bin/bash`; this diagnostic did not provide an interactive shell. The verbose log also showed a pending wait for the ESP UUID 4053-1CD8 during startup; this run did not establish whether it later mounted. Do not infer a failure from that interim wait: the earlier normal no-media boot with the generic fallback mounted the ESP successfully.
+
+The guest continued through host service startup but did not reach a login prompt before the QEMU 180-second timeout. Full serial log: `serial.log`, SHA256 5361312afd8827b1f90abb839fcedb083970274bb03f327c5cd9d82371ea458c (874 KiB). No package reinstall/hook/recovery/rollback was run. No persistent GRUB or firmware-variable change was made.

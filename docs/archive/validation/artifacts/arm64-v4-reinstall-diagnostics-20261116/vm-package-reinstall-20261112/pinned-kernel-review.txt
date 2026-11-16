@@ -1,0 +1,18 @@
+ARM64 v4 pinned-kernel clone review — 2026-11-12
+
+Scope: cloned qcow2 only. Retained backing target and retained UEFI variables remained unchanged.
+Retained target SHA256: 29e3a9c6be1d36b326192088483686860e794239ed4d877c0b71213e88113d72
+Retained vars SHA256:   ed3bc0c0a050f40f4c33eee325e242f8daa2bc2358c172ef5cd691961eb64175
+
+Installed GRUB config (extracted read-only to /tmp/luna-grub.cfg) exposes only generic Ubuntu entries:
+- gnulinux-simple-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052 (Ubuntu default)
+- gnulinux-7.3.0-9-generic-advanced-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052
+- gnulinux-7.3.0-9-generic-recovery-1f3dc24b-0c4d-4bed-9cf6-5da57ea2a052
+No SP12 candidate entry is generated in Ubuntu GRUB. Generic fallback kernel/initrd remain present and prior no-media default boot reached Ubuntu login. Candidate SP12 EFI payload remains separate on ESP.
+
+Attempt 2: GRUB prompt was reached via repeated Escape. A one-time manual GRUB CLI load executed the pinned 7.3.1-psycachy-sp121 kernel (serial identifies Linux version 7.3.1-psycachy-sp121) but malformed typed root=UUID argument became root==1f3...; dracut refused to continue and powered down. Serial SHA256: 5ec0a3911d00d8b9de9d42d6af9d4fd90fbe2dfaafb835eab017971cbee63a27.
+
+Attempt 3: fresh COW overlay from retained target with an independent copy of retained UEFI vars. GRUB CLI one-time boot command selected /boot/vmlinuz-7.3.1-psycachy-sp121 and /boot/initrd.img-7.3.1-psycachy-sp121 with root=/dev/vda2 ro console=ttyAMA0. Serial confirms Linux version 7.3.1-psycachy-sp121, console ttyAMA0, dracut/systemd initrd starts, and /dev/vda2 is detected. Boot stalls after Starting systemd-tmpfiles-setup-dev.service; no subsequent serial output for >2 minutes. QEMU was terminated by its 180s timeout. This does not establish candidate userspace boot or package hook behavior. Serial SHA256: 1460d80fdb184a625e0fc7ec9d5fea068be20d8e26a3e6f4928025b92758fa8c.
+Attempt 3 overlay SHA256: 3e3bad5590a202a99646519d8cf0c58fd30ec9847666929cb2a2752a8fe44633; qemu-img check: no errors. Attempt 3 vars SHA256: 1f39efb89c7f37fb46f1dc306be3a988f3c57f5d223268fbbea11073f35713e8.
+
+Package reinstall/update-hook, interrupted-update recovery, and rollback were not run because the candidate boot did not reach userspace/root shell. No supported deterministic fault-injection point was exercised. No persistent GRUB config/NVRAM changes were made by the one-time manual GRUB CLI selection. No physical device or retained source image was modified.

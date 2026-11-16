@@ -16,15 +16,52 @@ The records below preserve dated results and exact historical artifact
 identities. Earlier present-tense wording refers to its recorded snapshot and
 may be superseded; use the private-pilot ledger for current pilot status.
 
+- **2026-11-16 SP12 live boot:** after an earlier one-time firmware attempt
+  did not list Ventoy, the user later booted the staged final51 combined image
+  to a live session. The supplied diagnostics report kernel
+  `7.3.1-psycachy-sp121-r2`, the matching DTB build ID, read-only `/cdrom` and
+  `/rofs`, and writable `/cow`. The image previously passed a full Ventoy
+  destination read-back, but the live capture has no in-session ISO hash.
+  Display/input, USB, Wi-Fi, Bluetooth, audio, camera, storage-health,
+  suspend/resume, read-only RPMB, and external installation gates remain open.
+  The earlier B550I Ventoy BootOrder entry does not establish SP12 firmware
+  state. See the [boot report](archive/validation/sp12-firmware-boot-attempt-20261116.md)
+  and [handoff](archive/validation/private-pilot-handoff-20261116.md).
+
+- **2026-11-16 storage cleanup:** the user's AMD64 build rerun finished, and
+  the exact candidate hash remains
+  `908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`.
+  Retired ISO/package generations, completed VM captures, and obsolete QEMU
+  build outputs were removed after preserving pinned inputs and compact
+  evidence. `/` now has about 177.87 GiB free, 97.87 GiB above the reserve.
+  The AMD64 prior-image VM and ARM64 update fixture remain
+  the only temporary VM disk fixtures. See the
+  [storage report](archive/validation/storage-cleanup-20261116.md).
+
+- **2026-11-16 AMD64 per-install guarded-rescue candidate:** the current
+  8,052,277,248-byte image has SHA-256
+  `908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`.
+  Independent review passed 36 manifest source hashes, 282 embedded package
+  hashes, 13 helpers, the per-install certificate pin, guarded GRUB menu, and
+  signed-base EFI/casper/UEFI payloads. Its default Try/Rescue entry reached
+  the live desktop in network-disabled, diskless QEMU without the earlier
+  installer-failure dialog. It has not been freshly installed or tested for
+  repeat-media behavior or lifecycle. The prior image's MOK and timeout result
+  is recorded separately and does not transfer to this hash. No physical disk,
+  USB, or host firmware was changed. See the
+  [candidate report](archive/validation/amd64-perinstall-guarded-rescue-20261116.md).
+
 - **2026-11-15 12:50 MST SP12 combined image:** the native ARM64 builder on
   `cs-sp12` produced the combined final51 live/rescue/opt-in installer
   candidate, 5,500,940,288 bytes, SHA-256
   `56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27`.
   Builder validation and an independent full-content audit passed, including
   the default non-autoinstall Try/Rescue entry and guarded installer path.
-  Native boot and device behavior are unverified; no USB or installation
-  target was written. The separate Ventoy staging checkpoint is still
-  required. See the [build and audit report](archive/validation/sp12-combined-build-20261115.md).
+  A later user-provided physical live-session capture reports the expected
+  kernel and DTB build ID; the in-session ISO hash was not captured. Device
+  behavior and installation remain unverified. See the
+  [build and audit report](archive/validation/sp12-combined-build-20261115.md)
+  and [live-boot report](archive/validation/sp12-firmware-boot-attempt-20261116.md).
 
 - **2026-11-15 13:54 MST SP12 Ventoy staging:** after the user approved the
   exact file-level checkpoint, the combined ISO replaced the prior SP12
@@ -701,19 +738,15 @@ results; protected-disk checksum/sentinel.
 
 ### 2.2 AMD64 installer lifecycle
 
-- The reviewed activation lifecycle is integrated into the private AMD64
-  candidate ISO at
-  `output/amd64-iso-lifecycle-20261114-build2/psycachy-ubuntu-26.10-desktop-amd64.iso`,
+- The current private AMD64 candidate is
+  `output/amd64-iso-lifecycle-20261116-perinstall-guarded-rescue/psycachy-ubuntu-26.10-desktop-amd64.iso`,
   SHA-256
-  `e81c6d16740849e6b0b85eedf011a2317b0ae0ce42965a43134068ad87c6aa1c`.
-  Build and selected-payload checks passed; focused helper, selector,
-  late-install, syntax, and static checks pass. A bounded network-disabled
-  UEFI/KVM boot smoke reached the guarded disk selector and stopped without
-  choosing a target. Installation and lifecycle have not been qualified in a
-  disposable reboot/rollback trial. See the
-  [private-pilot integration record](archive/validation/amd64-activation-lifecycle-20261114.md),
-  [candidate build record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
-  and [boot record](archive/validation/amd64-lifecycle-iso-liveboot-20261114.md).
+  `908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`.
+  The content audit and exact-hash default Try/Rescue live boot passed in
+  network-disabled, diskless QEMU. Fresh installation, detached boot,
+  repeat-media, and lifecycle tests remain open. The earlier pre-fix image on
+  Ventoy is not this candidate. See the
+  [2026-11-16 build and boot report](archive/validation/amd64-perinstall-guarded-rescue-20261116.md).
 - In a disposable UEFI VM exercise first-install and replacement pre-erase
   modes as applicable, then run candidate acknowledgement, timeout rollback,
   explicit promotion, and rollback from acknowledged state while verifying the
@@ -721,9 +754,11 @@ results; protected-disk checksum/sentinel.
   identities through the trial.
 - Verify that the pinned package module signer is trusted by the exact
   candidate kernel, then use the enrolled owner keys for the kernel image and
-  DKMS modules. The disposable VM refused the prior untrusted candidate's MOK
-  prompt; no enrollment occurred there. Confirm both kernels only after the
-  complete identity and runtime trust checks pass.
+  DKMS modules. A separate prior-image VM enrolled both owner keys and passed
+  `PREPARE`, but the trial timed out with `nvidia` absent and returned to the
+  generic fallback. No NVIDIA hardware is present in that VM. Do not transfer
+  these results to the current ISO or promote it without the required
+  hardware-backed attestation.
 - Validate NVIDIA DKMS behavior on a GPU-equipped test target; the current VM
   had no NVIDIA GPU.
 - Validate the ISO on supported AMD64 hardware using a disposable target disk
@@ -741,8 +776,9 @@ verified test scope and keep it a private candidate rather than a release ISO.
 
 ### 2.3 Produce release images
 
-- The current private AMD64 lifecycle candidate is the exact ISO recorded in
-  section 2.2. The SP12 final51 installer identity and evidence boundary are
+- The current private AMD64 lifecycle candidate is the exact hash recorded in
+  section 2.2; it is built and audited but has only passed the default live
+  boot smoke. The SP12 final51 installer identity and evidence boundary are
   recorded in the [private-pilot qualification ledger](PRIVATE-PILOT-QUALIFICATION.md);
   its generic-QEMU install powered off cleanly, but detached boot has not been
   qualified. The SP12 combined final51 live/rescue/opt-in installer image is

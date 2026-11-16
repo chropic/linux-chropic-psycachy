@@ -96,7 +96,7 @@ switch-root completed. Host startup continued into AppArmor/rfkill before the
 COW overlay passed `qemu-img check`; the backing target and firmware variables
 retained their recorded hashes. Package reinstall, update hook,
 interrupted-update recovery, and rollback were not run. Details are in
-`../../../output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/pinned-kernel-review.txt`.
+`artifacts/arm64-v4-reinstall-diagnostics-20261116/vm-package-reinstall-20261112/pinned-kernel-review.txt`.
 The attempt-4 diagnostic review hash is
 `e7e88a6554d3108f0475c5618fe62eb66df7cd73f8a1c4a578a595ff696a4f76`; the
 full serial log hash is
@@ -129,9 +129,9 @@ timeout, boot-sync completion, and interruption recovery remain unverified.
 The disposable overlay passed `qemu-img check`; the backing target and UEFI
 variables were preserved. Attempt-7 review SHA-256 is
 `4bbdcd72628c368ef8def43dbd8a8bb8b219d397d887358d54b6d8244a4ac78e`; see
-`../../../output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/attempt7-long-reinstall/reinstall-review.txt`.
+`artifacts/arm64-v4-reinstall-diagnostics-20261116/vm-package-reinstall-20261112/attempt7-long-reinstall/reinstall-review.txt`.
 The attempt-6 review file is
-`../../../output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/attempt6-debug-shell-masked/host-debug-shell-review.txt`.
+`artifacts/arm64-v4-reinstall-diagnostics-20261116/vm-package-reinstall-20261112/attempt6-debug-shell-masked/host-debug-shell-review.txt`.
 
 The prior two SP12-native QEMU installer attempts still did not reach the
 selector. They used different renderers, wrote zero bytes to both target and
@@ -457,6 +457,6 @@ paired benchmarks remain deferred until all working-system gates pass.
 - SP12 FAT delayed-write transfer and sector map:
   `../../../output/.unattended-luna-20261111210910Z/qemu-hosting/fat-delay-qualification-20261112/`
 - ARM64 candidate boot review:
-  `../../../output/.unattended-luna-20261111210910Z/qemu-hosting/csb550i-1-arm64-v4-attempt8/vm-package-reinstall-20261112/`
+  `artifacts/arm64-v4-reinstall-diagnostics-20261116/`
 - Prior QEMU stop report:
   [`unattended-luna-stop-handoff-20261112.md`](unattended-luna-stop-handoff-20261112.md)
