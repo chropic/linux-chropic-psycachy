@@ -228,3 +228,85 @@ Root free space before boot was 104,606,810,112 bytes (about 97.44 GiB),
 target and preserve the reserve throughout the install and later lifecycle
 scenarios. This candidate remains local and has not been staged on Ventoy or
 physically booted.
+
+## Follow-up — fixed candidate install and detached first boot (2026-11-15 17:47 MST)
+
+The exact parser-fix ISO, 8,052,277,248 bytes with SHA-256
+`d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`, passed
+its adjacent `SHA256SUMS` check. It was installed in a fresh 64 GiB disposable
+QEMU target under QEMU 11.0.3/KVM, 2 vCPUs, 4 GiB RAM, no network, and the
+Microsoft-signed OVMF profile. The installer target was only `/dev/vda`, serial
+`psycachy-linux`; its review screen showed a FAT32 EFI partition and ext4 root
+partition. The separate 64 GiB `psycachy-other` sentinel disk and ISO were
+read-only. First-install mode was used, and the installer reached
+“Ubuntu 26.10 is installed and ready to use” without the prior NVIDIA-pair
+parser error.
+
+After the completion prompt, the ISO was forcibly ejected through the QEMU
+monitor and the VM restarted. Firmware booted `Boot0005 Ubuntu` from the
+installed disk's `\EFI\ubuntu\shimx64.efi`; the guest reached the
+`vmtest` GDM login screen without attached installation media. The screenshot
+is retained at
+`output/amd64-iso-lifecycle-run-20261115/secureboot-fixed-installed-first-boot.png`,
+SHA-256 `5a7d3c7a3dff354dfdf16697a4c594231c02cb993254c49da506d7c253cbc48f`.
+The initial KVM serial log is
+`output/amd64-iso-lifecycle-vm-20261115-nvidiafix/serial.kvm-install.log`,
+SHA-256 `620d5994f3587134a6882a9e07d95f229210b704bf727634b1b582b3b4e9d52f`.
+
+The 64 GiB virtual target QCOW occupies 13,338,107,904 bytes. `qemu-img check`
+reported no errors, and `tests/iso-vm.sh verify-other` returned `OK`
+for both the sentinel hash and its 1 MiB pattern. The VM was shut down through
+the monitor. A later disk-only TCG run also reached the installed login screen
+and was shut down cleanly; its serial log hash is
+`11951fc1dc85fbb0a7abe23a4571da980dacbb0cbeb091aa384458f61309e9de`.
+Local `/` had 91,200,782,336 bytes free (85.0 GiB), about 5 GiB above the
+80 GiB reserve. Continue to monitor before allocating further lifecycle
+overlays or backup payloads.
+
+This closes the exact candidate's disposable first-install and detached
+first-boot gates. It does not by itself record `mokutil --sb-state`, installed
+kernel lockdown, `module.sig_enforce`, MOK enrollment/trust, candidate kernel
+activation, acknowledgement, promotion, timeout rollback, explicit rollback,
+replacement mode, tamper refusal, or physical B550I behavior. The installed
+guest's Secure Boot and module-trust state remains unverified. The image is not
+staged on Ventoy or physically booted; no physical disk, media, or host
+firmware/NVRAM was written. See the [current continuation report](supervised-continuation-20261115.md)
+and [qualification ledger](../../PRIVATE-PILOT-QUALIFICATION.md).
+
+## Follow-up — repeat media boot and installer failure (2026-11-15)
+
+After the detached installed-disk boot, the same ISO was reattached read-only
+to try to reach a live session without using the guest account. The UEFI boot
+manager selected the QEMU DVD device and GRUB's `Try or Install Ubuntu` entry.
+The GUI relaunched the guarded installer and displayed:
+
+```text
+Installation failed
+A command in the autoinstall file failed to run during installation.
+```
+
+No detailed installer log or screenshot of this error was retained. I did not
+intentionally confirm a second erase/install. The ISO source audit explains
+why the installer relaunched: `iso/build.sh:65-82` adds `autoinstall` to both
+GRUB Linux entries, and the ISO has no live-only entry. The selector in
+`iso/select-disk.py:183-221` requires an explicit disk, mode, and `ERASE`
+confirmation before configuring storage. The exact command failure and the
+extent of any virtual-target writes remain unknown.
+
+I ejected the ISO and restarted from the installed disk. The guest again
+reached the `vmtest` GDM screen. The retained serial log for this media/reboot
+attempt is
+`output/amd64-iso-lifecycle-vm-20261115-nvidiafix/serial.kvm-live-media-retry.log`,
+SHA-256 `814c7ae6d32b9daf7634c760a576b6400b8b67943695f6472792ecaa451ee741`;
+the GUI installer failure itself is not present in that serial log. After
+shutdown, `qemu-img check` reported no QCOW errors and
+`tests/iso-vm.sh verify-other` again passed the protected disk hash and 1 MiB
+pattern. The target still boots, but its package state and post-attempt disk
+contents have not been audited. Its QCOW length is now 13,369,409,536 bytes,
+31,301,632 bytes above the previously recorded post-install length; this
+change is not attributed to the installer without a sector-level comparison.
+
+For a safe one-boot live-session attempt, edit the GRUB kernel line and remove
+`autoinstall` before booting. This was not done during the failed re-entry.
+Local `/` had 91,159,805,952 bytes free at the post-run check (about 84.9 GiB,
+4.9 GiB over the 80 GiB reserve). No physical disk or media was touched.

@@ -29,12 +29,19 @@ built at
 SHA-256 `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`;
 its sidecar and independent artifact review pass. The audit verified all 282
 embedded package hashes/manifest records, the parser/source match and unique
-NVIDIA pair, and signed-base EFI/casper identity. A fresh Secure Boot VM is
-now at the guarded disk selector showing only `/dev/vda` (`psycachy-linux`)
-with its checkbox clear. The new hash has
-not yet been installed or written to Ventoy. Keep the failed result attached
-to the previous hash; do not transfer its successful earlier selector smoke
-to the new hash. See the
+NVIDIA pair, and signed-base EFI/casper identity. The exact new hash completed
+a network-disabled first installation on only `/dev/vda` (`psycachy-linux`)
+and booted from that disk after the ISO was ejected. The target QCOW integrity
+and protected-sentinel checks passed. A later ISO re-entry launched the
+installer again and displayed an autoinstall command failure; its technical
+details and target-write extent were not captured. The ISO was ejected, and
+the existing disk booted to GDM again. Source review found the build adds
+`autoinstall` to both GRUB entries; a live-session attempt must edit the boot
+line to remove it. The selector still requires explicit disk, mode, and
+`ERASE` confirmation before storage is configured. The image is not staged on
+Ventoy or physically booted. Keep the earlier parser failure attached to its
+previous hash; do not transfer its selector or failure results to this new
+hash. See the
 [implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
 [prior ISO record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
 [new prompt-fix build and audit](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md),
@@ -54,13 +61,17 @@ by the helper, completing that file while the prompt waits could make Enter
 promote it. The source now fails closed on blank and has executable regressions
 for blank and explicit paths. The old ISO on Ventoy embeds the pre-fix prompt
 and remains ineligible for lifecycle qualification. The corrected local image
-passed the independent content audit and an exact-hash, network-disabled KVM
-smoke to the guarded disk selector; the target checkbox remained clear. Run
-the disposable install and lifecycle sequence before any physical rehearsal.
-**Remaining:** run the exact candidate through a disposable UEFI installation,
-acknowledgement, promotion, and rollback sequence with the fallback preserved,
-then run exact-candidate B550I checks. These remain separate from the passing
-software tests and build evidence in the
+passed the independent content audit, disposable first installation, and
+detached first boot to GDM; the old parser failure did not recur. A later ISO
+re-entry displayed an autoinstall command failure and needs a separate cause
+review. The installed target booted to GDM again after the ISO was ejected.
+Secure Boot state inside the installed guest, local MOK enrollment/trust,
+candidate activation, acknowledgement, promotion, timeout rollback, explicit
+rollback, replacement mode and tamper refusals are validation gates rather
+than remaining code work. **Remaining:** audit the repeated-media failure,
+inspect installed state, then complete the disposable UEFI lifecycle sequence
+with the generic fallback preserved and run exact-candidate B550I checks.
+These remain separate from the passing software tests and build evidence in
 [qualification ledger](PRIVATE-PILOT-QUALIFICATION.md).
 
 ### I-6: Reproduce ARM64 changed-release boot-payload updates

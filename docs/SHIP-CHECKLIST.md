@@ -74,6 +74,39 @@ may be superseded; use the private-pilot ledger for current pilot status.
   and is not installed. No physical disk or media was written.
   See the [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
 
+- **2026-11-15 17:47 MST AMD64 parser-fix install and detached boot:** the
+  exact 8,052,277,248-byte candidate, SHA-256
+  `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`,
+  completed its first install on the disposable `/dev/vda` (`psycachy-linux`)
+  under QEMU 11.0.3/KVM with 2 vCPUs, 4 GiB RAM, no network, and the
+  Microsoft-signed OVMF profile. Only `/dev/vda` was writable; the 64 GiB
+  sentinel and installer ISO were read-only. After ejecting the ISO and
+  restarting, firmware started the installed `\EFI\ubuntu\shimx64.efi`
+  and the guest reached the `vmtest` GDM login screen. The target QCOW passed
+  `qemu-img check`; `verify-other` confirmed the sentinel hash and pattern.
+  The first-boot screenshot is retained at
+  `output/amd64-iso-lifecycle-run-20261115/secureboot-fixed-installed-first-boot.png`
+  (SHA-256 `5a7d3c7a3dff354dfdf16697a4c594231c02cb993254c49da506d7c253cbc48f`).
+  Root free space after the run was 91,200,782,336 bytes (85.0 GiB), about
+  5 GiB above the 80 GiB reserve. Installed-guest `mokutil`, lockdown, module
+  trust, and candidate activation lifecycle checks remain open. The fixed ISO
+  has not been staged on Ventoy or physically booted; no physical disk, media,
+  or host firmware was written. See the
+  [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
+
+- **2026-11-15 AMD64 repeat-media attempt:** the installed VM was at GDM when
+  the same ISO was reattached to try to reach a live session. Its default
+  `Try or Install Ubuntu` entry relaunched the guarded installer, which showed
+  `A command in the autoinstall file failed to run during installation.` The
+  detailed installer log was not captured. Source review found that the build
+  adds `autoinstall` to both GRUB entries; a safe live boot requires a one-time
+  GRUB edit removing that argument. After ejecting the ISO, the existing disk
+  booted to GDM again. The QCOW check and protected-sentinel checks passed, but
+  the target's post-attempt package state and extent of virtual writes were
+  not audited. The retry serial log is retained and hashed in the
+  [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
+  No physical disk or media was touched.
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is

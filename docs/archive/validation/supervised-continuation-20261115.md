@@ -244,3 +244,53 @@ selected and installation has not begun. Local root free space at VM start was
 104,605,257,728 bytes (about 97.44 GiB), 17.44 GiB above the 80 GiB reserve.
 The new image is not staged on Ventoy. B550I and SP12 hardware gates remain
 open.
+
+## Follow-up — AMD64 fixed candidate install and detached boot (2026-11-15 17:47 MST)
+
+The exact fixed candidate (`d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`,
+8,052,277,248 bytes) completed the network-disabled first installation under
+QEMU 11.0.3/KVM with 2 vCPUs, 4 GiB RAM, and the Microsoft-signed OVMF
+profile. The only writable target was `/dev/vda` (`psycachy-linux`); the
+reviewed layout was FAT32 EFI plus ext4 root. The ISO and protected sentinel
+were read-only. The installer reached its completion screen without the
+previous NVIDIA-pair parser failure.
+
+The ISO was ejected before restart. Firmware started the installed disk's
+`\EFI\ubuntu\shimx64.efi`, and the guest reached the `vmtest` GDM login
+screen. The boot screenshot and both KVM/TCG serial logs, with hashes, are
+listed in the [AMD64 prompt-fix report](amd64-lifecycle-iso-promptfix-20261115.md).
+The 64 GiB virtual target QCOW is 13,338,107,904 bytes and passed
+`qemu-img check`; `tests/iso-vm.sh verify-other` passed the sentinel's full
+hash and 1 MiB pattern read. The VM shut down through the QEMU monitor. Local
+root free space after the run was 91,200,782,336 bytes (85.0 GiB), about
+5 GiB over the 80 GiB reserve.
+
+This completes first-install and detached first-boot checks for the fixed
+candidate only. The installed guest's Secure Boot state, lockdown, module
+trust, NVIDIA runtime, activation trial, acknowledgement, promotion, rollback,
+replacement mode, and tamper-refusal cases remain open. The fixed image is not
+on Ventoy or physically booted; no physical disk, media, or host firmware was
+written. Continue only while preserving the 80 GiB reserve.
+
+## Follow-up — repeat ISO boot and live-session failure (2026-11-15)
+
+An exploratory re-entry into the same ISO was used to try to reach a live
+session without entering the temporary guest credential. The ISO's default
+`Try or Install Ubuntu` entry relaunched the guarded installer and displayed
+`A command in the autoinstall file failed to run during installation.` No
+technical details were captured. Source review found that `iso/build.sh`
+adds `autoinstall` to both GRUB Linux entries; the selector still requires
+explicit disk, mode, and `ERASE` confirmation before configuring storage.
+The safe next live-session attempt is a one-boot GRUB edit removing
+`autoinstall`.
+
+After ejecting the ISO, the existing VM target booted to GDM again. Its QCOW
+passed `qemu-img check`, the protected sentinel hash and pattern passed, and
+the serial evidence is retained at
+`output/amd64-iso-lifecycle-vm-20261115-nvidiafix/serial.kvm-live-media-retry.log`
+(SHA-256 `814c7ae6d32b9daf7634c760a576b6400b8b67943695f6472792ecaa451ee741`).
+The target remains bootable, but the post-attempt package state and extent of
+virtual-target writes were not audited. Local `/` had 91,159,805,952 bytes
+free (about 84.9 GiB), about 4.9 GiB above the reserve. No physical disk or
+media was touched. See the [prompt-fix report](amd64-lifecycle-iso-promptfix-20261115.md)
+for the precise artifact boundary and remaining checks.
