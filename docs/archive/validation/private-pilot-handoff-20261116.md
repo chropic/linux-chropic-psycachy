@@ -37,15 +37,32 @@ comparison verified all 36 in-repository source hashes against the committed
 checkout. The ISO itself was not rebuilt. The full `tests/static-check.sh`
 suite passed; its root-only `mokutil` check was skipped.
 
-No fresh exact-hash install or lifecycle VM run was started. The old QEMU
-process (PID 270613) is still using the previous candidate and disposable
-fixture under `/var/tmp/amd64-perinstall-bind-20261115/`, stopped at a UEFI/MOK
-screen. Its monitor was not controllable from the current shell, so the VM and
-its disks were left untouched and no second heavy QEMU run was launched. The
-SP12 SSH check also timed out. Resume by releasing the old VM from its
-originating terminal and shutting it down cleanly; then run the current ISO's
-install, detached boot, repeat-media, and lifecycle cases. Hardware checks
-still require physical B550I/SP12 access.
+The exact hash then completed a network-disabled Secure Boot QEMU install on a
+disposable 64 GiB `/dev/vda` (`psycachy-linux`) with a read-only sentinel. The
+installer completed after explicit `FIRST-INSTALL` and `ERASE` confirmations;
+the completion snapshot showed 17,259,126,272 target write bytes and zero
+sentinel writes. `qemu-img check`, sentinel hash/pattern verification,
+`dpkg --audit`, and `apt-get check` passed. The detached installed disk reached
+GDM on generic fallback `7.3.0-10-generic`. Secure Boot, lockdown, and module
+signature enforcement were active; the pinned kernel and NVIDIA DKMS module
+were signed, but neither per-install key was enrolled. The installer kept the
+generic kernel as default pending activation, so candidate boot was not
+attempted. The read-only Secure Boot helper reported
+the missing enrollment; no MOK/firmware trust change was made.
+
+The same ISO was re-entered with the installed target and sentinel read-only
+and reached the default Try/Rescue language screen without an autoinstall
+failure. That re-entry used a fresh disposable OVMF variables copy, so it does
+not qualify physical BootOrder or one-time-menu behavior. The installed QEMU
+VMs are shut down; the previously noted PID 270613 was absent at closeout. The
+current fixture is retained at
+`/var/tmp/amd64-perinstall-current-20261116/`; its private QA password remains
+outside the repository. A live-session `sudo -n reboot` attempt displayed
+`KERNEL PANIC ... Attempted to kill init! exitcode=0x0000000b`; after explicit
+hard-disk selection the installed disk booted to GDM. Investigate that live
+reboot anomaly at the next attended window. See the
+[AMD64 report](amd64-perinstall-guarded-rescue-20261116.md) and
+[evidence bundle](artifacts/amd64-perinstall-guarded-rescue-20261116/).
 
 ## Remaining work, in order
 
@@ -56,16 +73,19 @@ still require physical B550I/SP12 access.
    evidence set to B550I and verify hashes before ending the live session.
    The current pasted capture is archived locally; an SP12-to-B550I transfer
    was not performed or verified.
-2. **Complete AMD64 software qualification against the exact current hash.**
-   Candidate: 8,052,277,248 bytes, SHA-256
+2. **Finish AMD64 candidate boot and lifecycle qualification.** Candidate:
+   8,052,277,248 bytes, SHA-256
    `908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`.
-   It is not staged on Ventoy. Still required: fresh install, detached boot,
-   repeat-media reproduction with installer logs/write counters/package state
-   and `dpkg --audit`, then prepare/boot/acknowledge/promote, timeout and
-   explicit rollback, replacement mode, tamper refusals, and fallback
-   preservation. Recheck Secure Boot, lockdown, module trust, DKMS, NVIDIA,
-   networking, audio, and suspend/resume on the B550I. Promotion requires
-   complete hardware attestation.
+   Exact-hash install, detached fallback boot, package health, and read-only
+   repeat-media path passed in QEMU. On the physical B550I, install to a fresh
+   serial-identified disposable target, enroll the new per-install kernel and
+   DKMS MOK keys, boot the pinned kernel, and verify the RTX 4070 driver,
+   graphics, networking, audio, suspend/resume, update, and fallback. Then run
+   PREPARE, candidate boot, acknowledgement/refusal, promotion guard, timeout
+   rollback, explicit rollback, replacement mode, tamper refusal, and saved
+   generic fallback recovery. Promotion requires complete hardware
+   attestation. Stage the ISO on Ventoy only with a file-level checkpoint and
+   full read-back hash; no AMD64 replacement is currently staged.
 3. **Complete the ARM64 changed-release update on a fresh overlay.** The prior
    attempt reached a login prompt but did not run `dpkg` or hooks. An explicitly
    authorized disposable credential/seed is required. Observe package hooks,
@@ -94,12 +114,17 @@ still require physical B550I/SP12 access.
 
 ## Working constraints and retained state
 
-- Preserve at least 80 GiB free; the latest cleanup report records about
-  177.87 GiB free. Run one heavy job at a time.
-- Do not modify the active AMD64 VM until its monitor client is released and
-  QEMU has shut down cleanly. QEMU PID 270613 uses the older image; monitor
-  client PID 276667 is still connected. The ARM64 r1 target fixture remains
-  for the update test. Remove both fixtures after their dependent tests finish.
+- Preserve at least 80 GiB free; 164.47 GiB was free at the end of the AMD64
+  run. Run one heavy job at a time.
+- No QEMU VM or monitor was active at closeout. The exact-hash AMD64 fixture
+  is retained under `/var/tmp/amd64-perinstall-current-20261116/` for later
+  lifecycle work. The previous-image PID 270613 was absent. The ARM64 r1
+  target fixture remains for the update test; remove fixtures only after
+  their dependent tests finish.
+- Do not copy the disposable VM's private MOK keys to the B550I. A physical
+  installation generates its own per-install keys, which must be enrolled
+  through the attended MOK manager. Do not change persistent firmware order,
+  provision RPMB, write RPMB data, or test internal storage.
 - The matching final51 private signing key has not yet been confirmed in the
   local checkout; verify it from the authenticated SP12 build when reachable.
 - No code change follows from the boot diagnostics: the runtime kernel and DTB

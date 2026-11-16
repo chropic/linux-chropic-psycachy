@@ -1,0 +1,3 @@
+linuxdisk: rd_bytes=49934336 wr_bytes=0 rd_operations=664 wr_operations=0 flush_operations=2 wr_total_time_ns=0 rd_total_time_ns=20907823 flush_total_time_ns=18580 rd_merged=3 wr_merged=0 idle_time_ns=48360095566
+otherdisk: rd_bytes=14106624 wr_bytes=0 rd_operations=370 wr_operations=0 flush_operations=0 wr_total_time_ns=0 rd_total_time_ns=4400550 flush_total_time_ns=0 rd_merged=3 wr_merged=0 idle_time_ns=51464482033
+ide2-cd0: rd_bytes=7031768008 wr_bytes=0 rd_operations=117460 wr_operations=0 flush_operations=0 wr_total_time_ns=0 rd_total_time_ns=3188530029 flush_total_time_ns=0 rd_merged=0 wr_merged=0 idle_time_ns=39188067169

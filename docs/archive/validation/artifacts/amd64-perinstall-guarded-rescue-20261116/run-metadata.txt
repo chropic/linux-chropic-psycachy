@@ -1,0 +1,14 @@
+ISO_SHA256=908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc
+ISO_SIZE_BYTES=8052277248
+QEMU_VERSION=QEMU emulator version 11.0.3 (Debian 1:11.0.3+ds-2ubuntu2)
+Copyright (c) 2003-2026 Fabrice Bellard and the QEMU Project developers
+QEMU_BINARY_SHA256=fee42919e1671d8e9d54eafdd270cbe6a6b81e9a61ca4b6ea247b391b00d534c
+OVMF_CODE_SHA256=58d2c0800e31bcd49e5e87f945240705fd67e69f2101c7c40b1dbca882f9703d
+CPU=q35/KVM host CPU, 2 vCPU, 4096 MiB RAM
+FIRMWARE=Microsoft-signed OVMF, Secure Boot enabled in guest
+NETWORK=disabled (-nic none)
+INSTALL_TARGET=/dev/vda; QEMU serial=psycachy-linux; 64 GiB virtual QCOW2
+INSTALL_SENTINEL=QEMU serial=psycachy-other; 64 GiB virtual QCOW2; read-only
+REPEAT_MEDIA=existing installed target attached read-only; sentinel read-only; fresh disposable OVMF vars copy
+HOST_FREE_BYTES_AT_CLOSEOUT=176599101440
+HOST_FREE_GIB_AT_CLOSEOUT=164.47

@@ -1,9 +1,13 @@
 # AMD64 per-install signing and guarded Try/Rescue candidate — 2026-11-16
 
-**Status:** Fresh candidate built and independently audited; its default
-Try/Rescue path reached the live desktop in a network-disabled, diskless VM.
-Fresh installation, repeat-media behavior, and the remaining activation
-lifecycle still need exact-hash runs.
+**Status:** The 8,052,277,248-byte candidate was independently audited. Its
+exact hash completed a network-disabled install on a disposable 64 GiB target,
+booted the installed Ubuntu fallback to GDM, and re-entered the ISO through
+the default Try/Rescue path with the installed target and sentinel read-only.
+The guest package audit passed. Secure Boot was enabled, but neither
+per-install owner key was enrolled, so the pinned kernel did not boot and the
+activation lifecycle remains open. No Ventoy staging or physical hardware
+operation occurred.
 
 ## Candidate identity
 
@@ -105,6 +109,72 @@ Screenshots and checksums are retained beside the image:
 - `evidence/try-rescue-live-desktop.png`, SHA-256
   `4851f4c71163959f3dc41f1f9b8312ba00d372fd71e8bffd907a23cd80f36ff8`.
 
+## Exact-hash guarded installation
+
+The test VM used QEMU 11.0.3/KVM, q35, 2 vCPUs, 4 GiB RAM, Microsoft-signed
+OVMF with Secure Boot enabled, and no network. The writable target was a fresh
+64 GiB sparse QCOW presented as `/dev/vda`, serial `psycachy-linux`. A separate
+64 GiB QCOW sentinel (`psycachy-other`) remained read-only. Only `/dev/vda`
+appeared in the disk selector. The successful attempt selected
+`first-install`, entered `FIRST-INSTALL`, and then entered `ERASE` at the
+explicit `/dev/vda` erase prompt. Two earlier incomplete confirmation attempts
+failed closed before target writes.
+
+The installer reached its completion screen. Its final log reports that the
+PsyCachy packages were installed and Ubuntu remains the default pending
+activation. At the completion screen QEMU block statistics showed
+17,259,126,272 target write bytes, zero sentinel writes, and zero ISO writes.
+The first-install write count is expected because the operator explicitly
+confirmed the dedicated disposable target; the sentinel remained unchanged.
+After the run, both QCOW images passed `qemu-img check`, and
+`tests/iso-vm.sh verify-other` verified the sentinel SHA-256 and its 1 MiB
+`0x5a` pattern.
+
+## Detached first boot and installed guest state
+
+With the installer ISO ejected, the installed disk booted to GDM and the QA
+account reached the Ubuntu 26.10 first-run welcome screen. The selected
+release was Ubuntu fallback `7.3.0-10-generic`; the installer intentionally
+kept Ubuntu as the default pending activation, so the pinned
+`7.3.1-psycachy` candidate was not attempted. `dpkg --audit` returned no entries,
+and `sudo apt-get check` completed without a reported package error. DKMS
+reported NVIDIA 615.71.09 installed for `7.3.0-10-generic`,
+`7.3.0-9-generic`, and `7.3.1-psycachy`.
+
+The guest reported Secure Boot enabled, lockdown `[integrity]`, and
+`module_sig_enforce=Y`. `sbverify` confirmed the installed candidate kernel is
+signed by `/CN=PsyCachy Secure Boot Kernel`; `modinfo` reported the candidate
+NVIDIA module signer `PsyCachy DKMS Module Signing`. Both per-install owner
+certificates were **not enrolled** according to `mokutil --test-key` and the
+installed read-only Secure Boot helper. No MOK enrollment or firmware trust
+change was performed. Candidate boot was not attempted because the installer
+kept Ubuntu as the default pending activation. This does not qualify
+candidate-kernel boot or NVIDIA trust. The virtio-GPU VM has no
+RTX 4070, so NVIDIA module loading and graphics remain untested.
+
+One live-session reboot attempt using `sudo -n reboot` displayed
+`KERNEL PANIC ... Attempted to kill init! exitcode=0x0000000b`. The installed
+system then booted to GDM after selecting the hard disk explicitly. This
+panic was observed in the Try/Rescue live session, not during the detached
+installed-system boot, and remains an item to check during the next attended
+hardware rehearsal.
+
+## Exact-hash repeat-media re-entry
+
+The same ISO was booted again with the installed QCOW attached read-only, the
+sentinel read-only, networking disabled, and a fresh disposable OVMF variables
+copy. The default GRUB entry was “Try PsyCachy (live/rescue)”; the guest
+reached Ubuntu's language screen without launching the installer or showing
+the previous autoinstall failure. At the live screen QEMU reported zero writes
+to both disks. The fresh OVMF copy makes this a repeat-media content/path
+check, not a test of the installed VM's saved BootOrder or physical one-time
+boot menu.
+
+Evidence for the exact-hash install, guest state, and read-only repeat-media
+run is collected in the
+[evidence bundle](artifacts/amd64-perinstall-guarded-rescue-20261116/). Its
+`SHA256SUMS` covers all retained screenshots and text records.
+
 ## Separate prior-image lifecycle observations
 
 The previous `per-install-pin` image was installed to a disposable QCOW under
@@ -117,20 +187,38 @@ on Ubuntu fallback `7.3.0-10-generic`. The candidate release itself was not
 captured, so this does not prove a candidate boot. The virtio-GPU VM has no
 NVIDIA device. No acknowledgement or promotion was performed.
 
-This prior-image result gives a bounded timeout/fallback observation only.
-The current candidate still needs a fresh exact-hash installation, detached
-boot, repeat-media attempt with post-attempt package and write-extent audit,
-candidate boot, acknowledgement/refusal gates, explicit rollback, replacement
-mode and tamper-refusal checks. The old VM monitor is held by a stale client
-in another terminal. A continuation attempt on 2026-11-16 found that VM (PID
-270613, using the previous image and disposable fixture
-`/var/tmp/amd64-perinstall-bind-20261115/`) still active at a UEFI/MOK screen.
-Its monitor endpoint was not controllable from the current shell, so no new
-heavy QEMU run was started and the fixture disks were left untouched. First
-regain control in the originating terminal and shut that VM down cleanly, then
-continue the exact-current-hash runs. NVIDIA-dependent promotion remains an
-exact-hardware B550I gate.
+This prior-image result gives a bounded timeout/fallback observation only. For
+the current candidate, exact-hash installation, detached generic-fallback
+boot, package audit, signed-payload inspection, and read-only repeat-media
+re-entry are now recorded above. Candidate-kernel boot, acknowledgement and
+refusal gates, promotion, timeout and explicit rollback, replacement mode,
+tamper refusal, and recovery of the saved generic fallback remain open. The
+previously noted old VM PID 270613 was absent at closeout. NVIDIA-dependent
+promotion remains an exact-hardware B550I gate.
+
+## Remaining gates before private-pilot use
+
+1. On the B550I, perform a fresh serial-bound installation to an approved
+   disposable external target. The physical install creates its own
+   per-install keys; do not transfer the disposable VM's private keys.
+2. Enroll that install's kernel and DKMS module certificates through the
+   physical MOK manager, then verify the exact pinned kernel boots with Secure
+   Boot, lockdown, and module signature enforcement active.
+3. Verify NVIDIA 615.71.09 loads on the RTX 4070, graphics and display work,
+   and the full networking, audio, suspend/resume, update, fallback, and
+   recovery checks pass.
+4. Complete the exact candidate lifecycle: PREPARE, candidate boot,
+   acknowledgement/refusal, promotion guard, timeout rollback, explicit
+   rollback, replacement mode, tamper refusals, and saved generic fallback.
+   Promotion must remain blocked without the B550I hardware attestation.
+5. Stage this ISO on Ventoy only with a file-level checkpoint and full
+   destination read-back hash, then one-time boot that exact image without
+   changing persistent firmware order.
+6. Complete the SP12 live-device/RPMB-read-only matrix and its separately
+   checkpointed external-install/update work. FAT interruption recovery and
+   public performance/redistribution closeout remain shared release gates.
 
 No ISO was staged on Ventoy, and no physical disk, internal storage, or host
-firmware order was changed. At the end of this run `/` had
-125,794,316,288 bytes free (117.15 GiB), above the 80 GiB reserve.
+firmware order was changed. Only disposable OVMF variables files were used in
+the VMs. The final free-space sample was 176,599,101,440 bytes (164.47 GiB),
+above the 80 GiB reserve.
