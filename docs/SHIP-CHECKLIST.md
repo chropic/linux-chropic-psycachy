@@ -107,6 +107,23 @@ may be superseded; use the private-pilot ledger for current pilot status.
   [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md).
   No physical disk or media was touched.
 
+- **2026-11-15 AMD64 read-only live-session follow-up:** the prior display :14
+  launch command wrapped `tests/iso-vm.sh run` in
+  `timeout --signal=TERM --kill-after=15s 3600s`. The runner uses `exec` to
+  launch QEMU, so the command imposed a one-hour limit on the VM; the earlier
+  description of :14 as simply unavailable missed this cause. A separate
+  network-disabled QEMU run on display :15 attached the installed target and
+  sentinel read-only. A one-time GRUB edit removed `autoinstall` from the
+  kernel line, and the ISO reached the Ubuntu desktop; an installer-failure
+  dialog still appeared with `A command in the autoinstall file failed to run
+  during installation.` Its detailed log and screenshot were not retained, so
+  the cause remains unresolved. After monitor shutdown, the ISO hash, both
+  QCOW checks, and the sentinel hash passed. This confirms the desktop can be
+  reached through the edited path but does not qualify the ISO's live/rescue
+  or repeat-media installer behavior. I stopped this separate :15 VM through
+  its monitor after observing the screen; it was not the timed :14 run. No
+  physical disk, USB media, or firmware state was changed.
+
 - **2026-11-14 bounded refresh and readiness:** the authenticated 7.3.4
   replay stopped at Iris patch 46 (50/51 entries apply), so the existing
   7.3.1/final51 candidate remains selected. The AMD64 ISO-pinned build is

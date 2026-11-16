@@ -1,6 +1,6 @@
 # Private pilot qualification ledger
 
-**As of:** 2026-11-16 01:24 UTC / 2026-11-15 18:24 MST
+**As of:** 2026-11-15 MST (includes the read-only live-session follow-up)
 **Baseline:** `bb3fc379862271bcfdd8715564990f1073b7df83`
 **Scope:** private B550I AMD64 and SP12 ARM64 pilots. This ledger is the current
 source of truth for their gates. The [ship checklist](SHIP-CHECKLIST.md)
@@ -38,9 +38,17 @@ confirmed both GRUB entries add `autoinstall`, while the disk selector still
 requires explicit disk, mode, and `ERASE` confirmation before setting storage.
 After ejecting the ISO, the existing target booted to GDM again. Its QCOW check
 and the protected-sentinel checks passed, but the post-attempt installed
-package state and exact target-write extent were not audited. The next safe
-live-session attempt must remove `autoinstall` from the GRUB kernel line.
-Installed guest Secure Boot state, lockdown, module trust, and the activation
+package state and exact target-write extent were not audited. A subsequent
+read-only QEMU live-session boot removed `autoinstall` from the GRUB kernel
+line and reached the Ubuntu desktop, but an installer-failure dialog appeared
+again; its detailed log and screenshot were not retained. Both VM disks were
+attached read-only, networking was disabled, the ISO checksum passed after
+shutdown, both QCOW checks passed, and the sentinel checksum remained valid.
+This does not resolve the installer dialog or qualify the live/rescue path.
+The earlier display :14 launch command also wrapped `tests/iso-vm.sh run` in
+`timeout --signal=TERM --kill-after=15s 3600s`; the runner uses `exec` for
+QEMU, so that command imposed a one-hour limit on the VM. Installed guest
+Secure Boot state, lockdown, module trust, and the activation
 trial/acknowledgement/promotion/rollback sequence remain unverified. The
 earlier guarded write of the distinct live USB image
 `e29dd59f76fcf73ce1e7ed8dfe60d88b83f7d2dd3c8a4cfcbab1b9b413817e36` is
@@ -75,7 +83,7 @@ respectively.
 | --- | --- | --- |
 | AMD64 artifact identity | **Fixed candidate independently audited; disposable install and detached first boot passed; lifecycle open** | The previous 8,052,277,248-byte candidate SHA-256 `1406eefc1b559ec8363827521ed15e3ced7410873bf7f3d329140a2a1b286c85` failed a Secure Boot-enabled disposable install at offline NVIDIA pair detection. The parser fix is pushed as `d76342e`; four focused tests and static checks passed. The replacement local candidate is 8,052,277,248 bytes, SHA-256 `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa`; its sidecar and independent content audit passed. It completed installation to only `/dev/vda` (`psycachy-linux`) and booted without attached media via the installed `shimx64.efi` to GDM. `qemu-img check` and read-only sentinel verification passed. The Ventoy AMD64 image remains the ineligible pre-fix hash; the fixed image is not staged or physically booted. See the [prompt-fix report](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md). |
 | AMD64 CPU target | **Pin target `znver3`; fail-closed guard integrated and reviewed** | Existing package metadata ties the ISO-pinned package hashes to Clang's effective `znver3` target on the Ryzen 7 5800X3D build host, and the pin declares `cpu_target: znver3`. The new guard probes the host Clang target against the pin, checks resolved native/generic CPU config, and preserves the legacy metadata line. Ten focused guard tests and the full static suite pass; an independent review approved the change. No kernel/package rebuild or Kbuild compiler-command evidence was produced by this guard-only change. Existing package bytes and pin are unchanged. See the [CPU-target audit](archive/validation/amd64-zen3-target-audit-20261114.md) and [continuation report](archive/validation/supervised-continuation-20261115.md). |
-| AMD64 activation lifecycle | **First-install and detached boot passed; repeat-media installer failed; activation lifecycle open** | The fixed candidate completed a fresh first-install run on the disposable target and booted from that target after the installer ISO was ejected; the previous NVIDIA parser error did not recur. A later ISO re-entry displayed an autoinstall command failure, and its detailed cause and target-write extent were not captured. The existing target booted to GDM afterward, and QCOW/sentinel checks passed. Candidate preparation, candidate boot, acknowledgement, promotion, userspace timeout rollback, explicit rollback, replacement mode, tamper refusals, and fallback recovery remain untested. The health attestation remains a root-controlled operator record, not cryptographic proof of independent review. |
+| AMD64 activation lifecycle | **First-install and detached boot passed; repeat-media/live path unresolved; activation lifecycle open** | The fixed candidate completed a fresh first-install run on the disposable target and booted from that target after the installer ISO was ejected; the previous NVIDIA parser error did not recur. A later writable ISO re-entry displayed an autoinstall command failure; its detailed cause, post-attempt package state, and target-write extent were not captured. A later read-only VM boot with `autoinstall` removed reached the desktop but also displayed the installer-failure dialog; no detailed log was retained. Candidate preparation, candidate boot, acknowledgement, promotion, userspace timeout rollback, explicit rollback, replacement mode, tamper refusals, and fallback recovery remain untested. The health attestation remains a root-controlled operator record, not cryptographic proof of independent review. |
 | AMD64 Secure Boot and graphics | **Signed shim boot observed under Microsoft OVMF; installed guest state and module trust unverified** | The prior live generic kernel reported SecureBoot enabled and lockdown `integrity`. The fixed candidate's installed disk booted via `\EFI\ubuntu\shimx64.efi` to GDM under the Microsoft-signed OVMF profile. `mokutil --sb-state`, installed-kernel lockdown, `module.sig_enforce`, candidate MOK enrollment/trust, DKMS, graphics/video and suspend/resume were not queried in the installed guest. The existing B550I baseline has Secure Boot enabled, RTX 4070 detected on the generic kernel, lockdown `integrity`, and `module.sig_enforce=Y`; physical runtime behavior remains unqualified. |
 | ARM64 final51 installer | **Interactive GRUB kernel/initrd execution confirmed in reconstructed COW; exact SP12 boot unresolved** | Attempt 7 completed installer and powered off after media ejection. The untouched no-media COW run displayed GRUB, then remained visually inactive; its serial silence was inconclusive because the installed entry uses `console=tty0`. A reconstructed follow-up used interactive, RAM-only GRUB commands and PL011 diagnostics; it did not prove execution of the hidden zero-timeout default entry. With the Surface DTB, the kernel identified the Surface Pro 12 model and failed against QEMU `virt` GIC/timer resources. Omitting that DTB reached the installed root's serial login prompt under generic EFI/ACPI; no account login occurred. The result demonstrates a reproducible emulator/platform mismatch but does not prove the original detached attempt failed at the same point. Physical SP12 boot, runtime DTB identity, and hardware checks remain open. See the [detached-boot diagnosis](archive/validation/artifacts/sp12-attempt7-detached-kernel-diagnostic-20261114/report.md) and [attempt-7 GRUB report](archive/validation/sp12-attempt7-grub-config-read-20261114.md). |
 | CachyOS 7.3.4 refresh | **Deferred; existing 7.3.1/final51 retained** | The authenticated 7.3.4 source replay applies 50 of 51 entries. Entry 46 (`iris-context-bank-devices`) fails against `iris_probe.c` and overlaps upstream parent-device IOVA reservation with the downstream context-bank child-device design. The two-hour compatibility budget was not exhausted, but this is substantial safety-sensitive driver work; no full build or partial migration was started. See the [compatibility report](archive/validation/cachyos-7.3.4-compatibility-20261114.md) and [ordered replay](archive/validation/cachyos-7.3.4-ordered-replay-20261114.md). |
@@ -89,8 +97,81 @@ respectively.
 | Physical B550I qualification | **External rehearsal not started; disposable install and first boot passed; VM lifecycle remains open; no active write checkpoint** | The Apple HDD was reidentified read-only on 2026-11-15 by stable ID `/dev/disk/by-id/ata-APPLE_HDD_HTS545050A7E362_TNS519GY1G6JGG`, model `APPLE HDD HTS545050A7E362`, serial `TNS519GY1G6JGG`, and 465.8 GiB capacity; current path was `/dev/sda` and it was unmounted. Its observed contents remain an Ubuntu 26.10 ARM64 ISO signature, small ESP, and ext4 partition. The fixed AMD64 candidate completed a disposable Secure Boot-profile installation and detached first boot; its activation lifecycle, exact-hardware Secure Boot/module trust, NVIDIA, update, fallback, and device checks remain open. No Apple HDD or internal-disk write occurred; a fresh serial-bound checkpoint is required before rehearsal. |
 | Physical SP12 qualification and fresh install | **Combined image staged; native live boot and external install not started** | The Apple HDD remains the sequential B550I/SP12 rehearsal target; no final51 image was written to it. The combined image is staged on Ventoy with a matching full destination read-back hash, but no one-time SP12 boot has occurred. The user-reported AMD64 boot does not establish SP12 image bootability. No external installation or internal erase occurred. See the [USB inventory](archive/validation/artifacts/usb-ventoy-inventory-20261114/inventory.md), prior [write record](archive/validation/artifacts/usb-ventoy-inventory-20261114/write-record.md), and [combined-image write report](archive/validation/sp12-combined-ventoy-write-20261115.md). |
 | RPMB and protected data | **Physical gate open** | Physical exact-candidate registration/health checks remain read-only. RPMB provisioning/data writes and firmware trust changes are outside scope. Samsung BitLocker storage, Lexar BIOS media, and the attached Switch SD remain protected. |
-| Storage and VM capacity | **Targeted cleanup complete; 80 GiB reserve maintained with 4.9 GiB headroom** | The failed VM tree and checksum-verified obsolete ISO binary were retired; the 1.7 GB root-owned audit extraction was removed from `/tmp`. The installed 64 GiB virtual target QCOW now occupies 13,369,409,536 bytes, boots to GDM, and passes `qemu-img check`; the protected sentinel hash and 1 MiB pattern still pass. The exploratory repeat-ISO installer failure's target-write extent and package state were not audited. Local `/` has 91,158,061,056 bytes free (about 84.9 GiB), about 4.9 GiB above the 80 GiB reserve; stop additional allocation before crossing that floor or perform a separately reviewed cleanup. The separate 34 GB QEMU tree was audited; its disks are unique evidence, recovery fixtures, or required backing images. `cs-sp12` had 223,941,722,112 bytes free after its guarded cleanup removed seven staging/scratch trees; the combined ISO, metadata, logs, runner, and retired live-only recovery image remain. Local exact-copy package/QCOW hardlinks preserve names and sidecars while reclaiming about 1.56 GB by measured `df`; see the cleanup report. |
+| Storage and VM capacity | **Targeted cleanup complete; 80 GiB reserve maintained with 4.9 GiB headroom** | The failed VM tree and checksum-verified obsolete ISO binary were retired; the 1.7 GB root-owned audit extraction was removed from `/tmp`. The installed 64 GiB virtual target QCOW now occupies 13,369,409,536 bytes, boots to GDM, and passes `qemu-img check`; the protected sentinel hash and 1 MiB pattern still pass. The exploratory repeat-ISO installer failure's target-write extent and package state were not audited. Local `/` has 91,141,038,080 bytes free (about 84.9 GiB), about 4.9 GiB above the 80 GiB reserve; stop additional allocation before crossing that floor or perform a separately reviewed cleanup. The separate 34 GB QEMU tree was audited; its disks are unique evidence, recovery fixtures, or required backing images. `cs-sp12` had 223,941,722,112 bytes free after its guarded cleanup removed seven staging/scratch trees; the combined ISO, metadata, logs, runner, and retired live-only recovery image remain. Local exact-copy package/QCOW hardlinks preserve names and sidecars while reclaiming about 1.56 GB by measured `df`; see the cleanup report. |
 | Public-release requirements | **Deferred** | Paired performance trials and redistribution/attribution clearance are outside this private-pilot scope. This ledger is not a public ship approval. |
+
+## Remaining gates before private-pilot shipment
+
+The build and content-audit gates are complete for the current candidates, but
+neither ISO is ready for supported installation. The checks below close the
+remaining private-pilot gates; physical writes still require a fresh
+artifact/hash/device-serial checkpoint and explicit approval.
+
+### AMD64 B550I candidate
+
+- [ ] Diagnose the repeat-media installer failure. Capture its detailed log,
+  establish the intended live/rescue boot behavior, and close the failure
+  dialog seen even after a read-only GRUB edit removed `autoinstall`.
+- [ ] Audit the writable VM target after the earlier ISO re-entry: verify
+  installed package state (including `dpkg --audit`) and determine whether
+  the installer changed target contents. If the write extent cannot be
+  established, repeat on a fresh disposable target with write evidence.
+- [ ] Run the exact candidate's activation lifecycle: candidate preparation
+  and boot, acknowledgement, promotion, userspace-timeout rollback, explicit
+  rollback from acknowledged state, replacement mode, tamper refusals, and
+  recovery of the saved generic fallback. Preserve candidate and backup
+  identities and collect package-health evidence.
+- [ ] In the installed guest, verify Secure Boot, lockdown, and
+  `module.sig_enforce`; verify trust for the exact candidate kernel's package
+  signer and the enrolled owner kernel/DKMS keys; check DKMS, NVIDIA module
+  load, and graphics status.
+- [ ] Stage the corrected ISO hash
+  `d463a31aaa0d2fbce293e38bed360f9d50770dceee344bed716bbc1d71d238fa` on
+  Ventoy using its own file-level checkpoint and full read-back hash. Then
+  one-time boot that exact image on the B550I without changing persistent
+  firmware order. Verify Secure Boot, RTX 4070/NVIDIA, graphics, networking,
+  audio, suspend/resume, update, and fallback behavior. Any external install
+  must use an approved serial-identified disposable target; keep internal and
+  protected disks out of the harness.
+
+### ARM64 SP12 combined candidate
+
+- [ ] Boot the staged combined hash
+  `56083da5996fb4fe371b100e8fb325e0083e43208307d4af7f4aa592fa8d3a27` once
+  on native SP12. Preserve firmware order and use only the Try/Rescue entry.
+  Confirm the live session reaches userspace and reports the pinned final51
+  kernel, initramfs, modules, and runtime DTB/build ID.
+- [ ] Qualify live hardware behavior on SP12: display/input, USB, Wi-Fi,
+  Bluetooth, audio, camera, storage health, and suspend/resume. Run the
+  exact-candidate RPMB registration/health checks read-only; do not provision
+  keys or write RPMB data.
+- [ ] Install only to an approved serial-identified external/disposable
+  target, remove the media, and boot the installed system. Verify the final51
+  kernel/DTB, boot-sync payloads on the ESP and fallback, package health,
+  recovery checksums, and protected-disk sentinel.
+- [ ] Complete a changed-package update and rollback trial. The prior attempt
+  stopped at a login prompt before `dpkg`, hooks, dracut, or boot-payload sync;
+  an authorized disposable login/seed and sufficient measured space are
+  prerequisites. Verify update, reboot, fallback, and rollback results.
+
+### Shared release closeout
+
+- [ ] Resolve or explicitly accept the remaining FAT/recovery interruption
+  gaps and document the limits of simulated power-loss coverage.
+- [ ] Freeze each final ISO, package, kernel, DTB, config, source, and manifest
+  identity; archive the final checksums and all hardware/lifecycle evidence.
+- [ ] Keep the 7.3.1/final51 SP12 base unless the 7.3.4 Iris patch-46 replay
+  incompatibility is separately resolved and the candidate is rebuilt and
+  requalified.
+
+These are private-pilot gates. Public release additionally requires decisions
+for all six Phase 2 scenarios on both targets (at least three interleaved
+baseline/candidate pairs per scenario, with at least 10% lower whole-system
+energy where measurable, completion time no more than 10% longer, and p95
+response latency no more than 5% worse). New storage errors, watchdog events,
+failed resume, or functional regressions reject a result. Redistribution and
+attribution clearance is also required. SP12 whole-system energy remains
+unavailable under the approved measurement setup.
 
 ## Current dependencies and order
 
@@ -104,8 +185,9 @@ respectively.
    its sidecar and independent content audit passed. The fixed image completed
    a network-disabled first install on only `/dev/vda` (`psycachy-linux`),
    then booted from the installed disk to GDM after the ISO was ejected. The
-   target QCOW and read-only sentinel checks passed. Root free space is
-   91,200,782,336 bytes (85.0 GiB), about 5 GiB above the 80 GiB reserve.
+   target QCOW and read-only sentinel checks passed. Root free space is now
+   91,141,038,080 bytes (about 84.9 GiB), roughly 4.9 GiB above the 80 GiB
+   reserve.
    Continue the activation/MOK/trial/acknowledgement/promotion/rollback gates
    only within that reserve; if measured growth threatens it, pause for a
    separately reviewed cleanup. The new hash is not staged on Ventoy. After

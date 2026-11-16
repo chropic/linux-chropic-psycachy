@@ -36,12 +36,15 @@ and protected-sentinel checks passed. A later ISO re-entry launched the
 installer again and displayed an autoinstall command failure; its technical
 details and target-write extent were not captured. The ISO was ejected, and
 the existing disk booted to GDM again. Source review found the build adds
-`autoinstall` to both GRUB entries; a live-session attempt must edit the boot
-line to remove it. The selector still requires explicit disk, mode, and
-`ERASE` confirmation before storage is configured. The image is not staged on
-Ventoy or physically booted. Keep the earlier parser failure attached to its
-previous hash; do not transfer its selector or failure results to this new
-hash. See the
+`autoinstall` to both GRUB entries. A subsequent network-disabled, read-only
+QEMU boot removed that argument with a one-time GRUB edit and reached the
+Ubuntu desktop, but an installer-failure dialog still appeared with the same
+autoinstall command error. No detailed log or screenshot was retained, so the
+cause and intended live-session behavior remain unresolved. The selector
+still requires explicit disk, mode, and `ERASE` confirmation before storage is
+configured. The image is not staged on Ventoy or physically booted. Keep the
+earlier parser failure attached to its previous hash; do not transfer its
+selector or failure results to this new hash. See the
 [implementation record](archive/validation/amd64-activation-lifecycle-20261114.md),
 [prior ISO record](archive/validation/amd64-lifecycle-iso-build-20261114.md),
 [new prompt-fix build and audit](archive/validation/amd64-lifecycle-iso-promptfix-20261115.md),
@@ -63,8 +66,9 @@ for blank and explicit paths. The old ISO on Ventoy embeds the pre-fix prompt
 and remains ineligible for lifecycle qualification. The corrected local image
 passed the independent content audit, disposable first installation, and
 detached first boot to GDM; the old parser failure did not recur. A later ISO
-re-entry displayed an autoinstall command failure and needs a separate cause
-review. The installed target booted to GDM again after the ISO was ejected.
+re-entry and a separate read-only live-session boot both displayed an
+autoinstall command failure; the cause still needs diagnosis. The installed
+target booted to GDM again after the ISO was ejected.
 Secure Boot state inside the installed guest, local MOK enrollment/trust,
 candidate activation, acknowledgement, promotion, timeout rollback, explicit
 rollback, replacement mode and tamper refusals are validation gates rather
