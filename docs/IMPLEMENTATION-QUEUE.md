@@ -609,6 +609,10 @@ path is the supported recovery procedure.
   evidence indicates a difference between installed and corrected live audio
   state but does not isolate the cause. See the live-media status in the ship
   checklist and the audio evidence packet.
+  The 2026-11-12 speaker pass was not reproduced in a follow-on live session
+  on 2026-11-16: PipeWire exposed the speaker sink, but the user reported no
+  audible output. Treat built-in speaker playback as unqualified pending
+  diagnosis; see the [2026-11-16 hardware check](archive/validation/sp12-live-hardware-check-20261116.md).
 - A corrected UEFI rescue VM used a separate rescue root, restored a disposable
   target clone, and verified exact payload hashes. Fresh AAVMF variables and
   one-time BootNext reached the intended loader. A 2026-11-14 COW follow-up

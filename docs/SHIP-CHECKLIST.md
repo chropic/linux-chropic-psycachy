@@ -23,10 +23,22 @@ may be superseded; use the private-pilot ledger for current pilot status.
   `/rofs`, and writable `/cow`. The image previously passed a full Ventoy
   destination read-back, but the live capture has no in-session ISO hash.
   Display/input, USB, Wi-Fi, Bluetooth, audio, camera, storage-health,
-  suspend/resume, read-only RPMB, and external installation gates remain open.
+  suspend/resume, read-only RPMB, and external installation gates were open at
+  this boot snapshot; later test results are recorded below.
   The earlier B550I Ventoy BootOrder entry does not establish SP12 firmware
   state. See the [boot report](archive/validation/sp12-firmware-boot-attempt-20261116.md)
   and [handoff](archive/validation/private-pilot-handoff-20261116.md).
+
+- **2026-11-16 SP12 follow-on hardware check:** Wi-Fi, Bluetooth, USB
+  enumeration, and suspend/resume passed (operator-reported where noted in the
+  report). Built-in speaker output remained silent despite a PipeWire speaker
+  sink; the camera application found no cameras despite `/dev/video0` and
+  `/dev/video1` existing. The internal disk stayed unmounted; the separate
+  UDisk was present and unmounted. UPower first showed 6% battery and a pending
+  critical sleep action; the user later confirmed AC online and charging
+  before suspend testing. See the [dated hardware report](archive/validation/sp12-live-hardware-check-20261116.md)
+  for evidence boundaries and remaining checks. Device serials and the Wi-Fi
+  network name are omitted from the public record.
 
 - **2026-11-16 storage cleanup:** the user's AMD64 build rerun finished, and
   the exact candidate hash remains
