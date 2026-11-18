@@ -40,6 +40,20 @@ may be superseded; use the private-pilot ledger for current pilot status.
   for evidence boundaries and remaining checks. Device serials and the Wi-Fi
   network name are omitted from the public record.
 
+- **2026-11-18 SP12 live follow-up:** suspend/resume returned to the same boot;
+  the operator confirms Wi-Fi worked afterward, although the captured
+  NetworkManager state was disconnected. Bluetooth remained powered and
+  unblocked. Speakers remained silent, and GNOME Sound Settings showed no input
+  device (an earlier PipeWire snapshot did list an internal source). The
+  visible video nodes were identified as decoder/encoder codec nodes, not
+  camera-capture devices; V4L2/media tools were unavailable and GStreamer found
+  no source. RPMB region registration was logged, but no authenticated read was
+  made. Kernel logs also show USB transport failures and attempted writes
+  followed by an ext4 journal abort/read-only remount on an unidentified
+  external filesystem. No installer was run; do not infer the affected device.
+  Storage health and installation remain blocked pending resolution and a
+  separate Apple-target checkpoint. See the [sanitized follow-up report](archive/validation/sp12-live-hardware-check-20261118.md).
+
 - **2026-11-16 storage cleanup:** the user's AMD64 build rerun finished, and
   the exact candidate hash remains
   `908f7df0604cc28a4d36c7dbcf19fd9e09cdc16c42035f25876763092c4db7dc`.

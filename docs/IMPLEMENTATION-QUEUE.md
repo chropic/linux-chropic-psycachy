@@ -613,6 +613,14 @@ path is the supported recovery procedure.
   on 2026-11-16: PipeWire exposed the speaker sink, but the user reported no
   audible output. Treat built-in speaker playback as unqualified pending
   diagnosis; see the [2026-11-16 hardware check](archive/validation/sp12-live-hardware-check-20261116.md).
+  The 2026-11-18 follow-up again found no audible speaker output, and GNOME
+  Sound Settings exposed no microphone input despite an earlier PipeWire
+  snapshot listing an internal source. The visible video nodes were identified
+  as Iris decoder/encoder nodes, not capture devices; V4L2/media tools were
+  unavailable, GStreamer found no source, and kernel logs included a CSI lane
+  error and Iris firmware initialization failures. No mixer or camera-graph
+  changes are justified without a reproduced route or media-graph diagnosis.
+  See the [sanitized follow-up report](archive/validation/sp12-live-hardware-check-20261118.md).
 - A corrected UEFI rescue VM used a separate rescue root, restored a disposable
   target clone, and verified exact payload hashes. Fresh AAVMF variables and
   one-time BootNext reached the intended loader. A 2026-11-14 COW follow-up
