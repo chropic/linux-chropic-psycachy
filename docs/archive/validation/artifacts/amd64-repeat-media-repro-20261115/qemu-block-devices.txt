@@ -1,8 +1,0 @@
-QEMU HMP info block:
-pflash0 — /usr/share/OVMF/OVMF_CODE_4M.ms.fd, raw, read-only
-pflash1 — disposable firmware variables copy
-linuxdisk — writable qcow2 child overlay backed by the retained AMD64 installed-target fixture
-otherdisk — protected sentinel qcow2, read-only
-ide2-cd0 — exact AMD64 candidate ISO, raw, read-only
-
-QEMU was launched with -nic none, 2 vCPU, 4 GiB RAM, and Microsoft-signed OVMF.

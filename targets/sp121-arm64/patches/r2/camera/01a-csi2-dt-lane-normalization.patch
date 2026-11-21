@@ -1,0 +1,21 @@
+diff --git a/drivers/phy/qualcomm/phy-qcom-mipi-csi2-core.c b/drivers/phy/qualcomm/phy-qcom-mipi-csi2-core.c
+--- a/drivers/phy/qualcomm/phy-qcom-mipi-csi2-core.c
++++ b/drivers/phy/qualcomm/phy-qcom-mipi-csi2-core.c
+@@ -309,14 +309,15 @@
+ 	csi2phy->stream_cfg.lane_cfg.clk.pos = CSI2_DEFAULT_CLK_LANE;
+ 	csi2phy->stream_cfg.lane_cfg.clk.pol = lane_polarities[0];
+ 
+ 	for (i = 0; i < csi2phy->stream_cfg.num_data_lanes; i++) {
+-		if (data_lanes[i] >= CSI2_MAX_DATA_LANES) {
++		/* DT lane indices are 1-based; PHY lane positions are 0-based. */
++		if (data_lanes[i] < 1 || data_lanes[i] > CSI2_MAX_DATA_LANES) {
+ 			dev_err(dev, "Invalid lane %d\n", data_lanes[i]);
+ 			ret = -EINVAL;
+ 			goto out_put;
+ 		}
+-		csi2phy->stream_cfg.lane_cfg.data[i].pos = data_lanes[i];
++		csi2phy->stream_cfg.lane_cfg.data[i].pos = data_lanes[i] - 1;
+ 		csi2phy->stream_cfg.lane_cfg.data[i].pol = lane_polarities[i + 1];
+ 	}
+ 
+ 	ret = 0;

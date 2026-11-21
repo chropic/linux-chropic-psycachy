@@ -1,7 +1,0 @@
-sudo -S -p 'ARM64_SUDO_PROMPT_29' bash -c 'set +e; /usr/local/sbin/sp12-select-fallback 7.3.1-psycachy-sp121-r2; rc=$?; printf '"'"'\n__ROLLBACK_DONE__ rc=%s\n'"'"' "$rc"; exit "$rc"'
-[?2004l]3008;start=a16fb658-4d7e-4d72-a7ef-f3f8471fb56b;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\sp12-select-fallback: selected package-owned kernel 7.3.1-psycachy-sp121
-sp12-save-recovery: preserved the previous complete SP12 payload set.
-sp12-sync-boot: installed 7.3.1-psycachy-sp121 with /boot/dtb-7.3.1-psycachy-sp121
-
-__ROLLBACK_DONE__ rc=0
-]3008;end=a16fb658-4d7e-4d72-a7ef-f3f8471fb56b;exit=success\]3008;start=097a7ac7-fd5d-4d2c-a751-713bd2ca3559;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\[?2004hlun@luna-arm64:~$ 

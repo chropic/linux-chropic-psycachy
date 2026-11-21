@@ -1,38 +1,0 @@
-sudo -S -p 'ARM64_SUDO_PROMPT_26A' bash -c 'set -euo pipefail; mkdir -p /mnt/r2-pkgs; mount -t iso9660 -o ro /dev/vdb /mnt/r2-pkgs; sha256sum /mnt/r2-pkgs/linux-image.deb /mnt/r2-pkgs/linux-headers.deb; test "$(sha256sum /mnt/r2-pkgs/linux-image.deb | cut -d" " -f1)" = a1398ad1445d0a712aece65fbb2aa129a8afece4011e54773b6940616cae40bd; test "$(sha256sum /mnt/r2-pkgs/linux-headers.deb | cut -d" " -f1)" = 80139be7bc17a3ab5034f2deafb220bd6373bd33b23ddd8e5032f98bf89dccf3; dpkg-deb -f /mnt/r2-pkgs/linux-image.deb Package Version; dpkg-deb -f /mnt/r2-pkgs/linux-headers.deb Package Version; printf \"\n__PKG_INSTALL_BEGIN__\n\"; dpkg -i /mnt/r2-pkgs/linux-image.deb /mnt/r2-pkgs/linux-headers.deb; dpkg --audit; printf \"\n__PKG_INSTALL_DONE__\n\"'
-]3008;start=49bf9b91-42d1-4695-9ee1-4cf56552fd56;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=205ca55f-8643-4150-b6ed-ad114815d146;pid=1427;cwd=/home/lun\[sudo: ARM64_SUDO_PROMPT_26A] Password: ****************************************                                        
-a1398ad1445d0a712aece65fbb2aa129a8afece4011e54773b6940616cae40bd  /mnt/r2-pkgs/linux-image.deb
-80139be7bc17a3ab5034f2deafb220bd6373bd33b23ddd8e5032f98bf89dccf3  /mnt/r2-pkgs/linux-headers.deb
-Package: linux-image-7.3.1-psycachy-sp121-r2
-Version: 7.3.1-1psycachy2
-Package: linux-headers-7.3.1-psycachy-sp121-r2
-Version: 7.3.1-1psycachy2
-"n__PKG_INSTALL_BEGIN__n"Selecting previously unselected package linux-image-7.3.1-psycachy-sp121-r2.
-(Reading database… (Reading database… 5%(Reading database… 10%(Reading database… 15%(Reading database… 20%(Reading database… 25%(Reading database… 30%(Reading database… 35%(Reading database… 40%(Reading database… 45%(Reading database… 50%(Reading database… 55%(Reading database… 60%(Reading database… 65%(Reading database… 70%(Reading database… 75%(Reading database… 80%(Reading database… 85%(Reading database… 90%(Reading database… 95%(Reading database… 100%(Reading database… 201905 files and directories currently installed.)
-Preparing to unpack /mnt/r2-pkgs/linux-image.deb…
-Unpacking linux-image-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
-Selecting previously unselected package linux-headers-7.3.1-psycachy-sp121-r2.
-Preparing to unpack /mnt/r2-pkgs/linux-headers.deb…
-Unpacking linux-headers-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
-Setting up linux-headers-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
-Setting up linux-image-7.3.1-psycachy-sp121-r2 (7.3.1-1psycachy2)…
-dracut: Generating /boot/initrd.img-7.3.1-psycachy-sp121-r2
-kdump-tools: Generating /var/lib/kdump/initrd.img-7.3.1-psycachy-sp121-r2 (dracut)
-flash-kernel: deferring update (trigger activated)
-Sourcing file `/etc/default/grub'
-Sourcing file `/etc/default/grub.d/kdump-tools.cfg'
-Generating grub configuration file ...
-Found linux image: /boot/vmlinuz-7.3.1-psycachy-sp121-r2
-Found initrd image: /boot/initrd.img-7.3.1-psycachy-sp121-r2
-Found linux image: /boot/vmlinuz-7.3.1-psycachy-sp121
-Found initrd image: /boot/initrd.img-7.3.1-psycachy-sp121
-Found linux image: /boot/vmlinuz-7.3.0-9-generic
-Found initrd image: /boot/initrd.img-7.3.0-9-generic
-Warning: os-prober will not be executed to detect other bootable partitions.
-Systems on them will not be added to the GRUB boot configuration.
-Check GRUB_DISABLE_OS_PROBER documentation entry.
-Adding boot menu entry for UEFI Firmware Settings ...
-done
-sp12-sync-boot: 7.3.1-psycachy-sp121 already matches the ESP; no writes needed
-Processing triggers for flash-kernel (3.110ubuntu4)…
-System running in EFI mode, skipping.
-"n__PKG_INSTALL_DONE__n"]3008;end=49bf9b91-42d1-4695-9ee1-4cf56552fd56;exit=success\]3008;start=9a1d3651-715d-423e-af0c-642ff75dcf93;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=205ca55f-8643-4150-b6ed-ad114815d146;pid=1427;cwd=/home/lun\lun@luna-arm64:~$ 

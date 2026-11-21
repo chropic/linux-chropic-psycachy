@@ -1,31 +1,0 @@
-lun
-Password: 
-Welcome to Ubuntu 26.10 (GNU/Linux 7.3.1-psycachy-sp121-r2 aarch64)
-
- * Documentation:  https://docs.ubuntu.com
- * Management:     https://landscape.canonical.com
- * Support:        https://ubuntu.com/pro
-
-0 updates can be applied immediately.
-
-Failed to connect to https://changelogs.ubuntu.com/meta-release. Check your Internet connection or proxy settings
-
-]3008;start=e69aec7ae0354c238e9e3fa7857c67bb;user=root;hostname=luna-arm64;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;bootid=2372c7f7b9c84644b1d6d4f6f56cc74f;pid=1358;pidfdid=8486;comm=login;targetuser=lun;sessionid=2;type=session\]3008;start=a87c56c7-5978-4d65-b353-ec4dd16a0752;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=2372c7f7-b9c8-4644-b1d6-d4f6f56cc74f;pid=1520;cwd=/home/lun\[?2004hlun@luna-arm64:~$ sudo -S -p 'ARM64_SUDO_PROMPT_2B' bash -c 'set -euo pipefail
-[?2004l[?2004h> mkdir -p /mnt/r2-pkgs
-[?2004l[?2004h> mount -t iso9660 -o ro /dev/vdb /mnt/r2-pkgs
-[?2004l[?2004h> printf '"'"'\n== exact package hashes ==\n'"'"'
-[?2004l[?2004h> sha256sum /mnt/r2-pkgs/linux-image.deb /mnt/r2-pkgs/linux-headers.deb
-[?2004l[?2004h> test "$(sha256sum /mnt/r2-pkgs/linux-image.deb | cut -d'"'"' '"'"' -f1)" = a1398ad1445d0a712aece65fbb2aa129a8afece4011e54773b6940616cae40bd
-[?2004l[?2004h> test "$(sha256sum /mnt/r2-pkgs/linux-headers.deb | cut -d'"'"' '"'"' -f1)" = 80139be7bc17a3ab5034f2deafb220bd6373bd33b23ddd8e5032f98bf89dccf3
-[?2004l[?2004h> printf '"'"'\n== package status before unpack ==\n'"'"'
-[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package} ${Version} ${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2
-[?2004l[?2004h> printf '"'"'\n== controlled unpack boundary ==\n'"'"'
-[?2004l[?2004h> set +e
-[?2004l[?2004h> dpkg --unpack /mnt/r2-pkgs/linux-image.deb /mnt/r2-pkgs/linux-headers.deb
-[?2004l[?2004h> rc=$?
-[?2004l[?2004h> set -e
-[?2004l[?2004h> printf '"'"'DPKG_UNPACK_RC=%s\n'"'"' "$rc"
-[?2004l[?2004h> printf '"'"'\n== audit while configuration is pending ==\n'"'"'
-[?2004l[?2004h> dpkg --audit || true
-[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package} ${Version} ${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121-r2 linux-headers-7.3.1-psycachy-sp121-r2
-[?2004l[?2004h> printf '"'"'\n__UNPACK_PHASE_DONE__\

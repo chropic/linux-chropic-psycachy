@@ -1,9 +1,0 @@
-Exact package ISO SHA-256: 1103a9e88d1a5961d6286cba10f54d2565353d8d19601873a1ddafdb481ba9cd
-
-linux-image-7.3.1-psycachy-sp121-r2
-  Version: 7.3.1-1psycachy2
-  SHA-256: a1398ad1445d0a712aece65fbb2aa129a8afece4011e54773b6940616cae40bd
-
-linux-headers-7.3.1-psycachy-sp121-r2
-  Version: 7.3.1-1psycachy2
-  SHA-256: 80139be7bc17a3ab5034f2deafb220bd6373bd33b23ddd8e5032f98bf89dccf3

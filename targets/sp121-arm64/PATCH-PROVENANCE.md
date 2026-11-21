@@ -83,7 +83,7 @@ source-tree digest
 the series restored pristine digest
 `dc272061b7eea961aac2112c46dc140d778a7de3bbff7dff8d1068c571631ffa`. The
 machine-readable per-patch identities and resulting tree digests are in
-[`sp12-r2-source-replay-20261113-final-37-patch-series.json`](../../docs/archive/validation/sp12-r2-source-replay-20261113-final-37-patch-series.json).
+`sp12-r2-source-replay-20261113-final-37-patch-series.json` (private evidence).
 The manifest and patch checksums are verified by `tools/verify-sp121-inputs.py`
 and `patches/r2/SHA256SUMS`.
 
@@ -94,7 +94,7 @@ The separately versioned candidate pin is
 the previous v4 pin remains unchanged. Installer/VM qualification and physical
 camera and hardware checks remain open. Exact package hashes and verification
 scope are recorded in
-[`sp12-r2-config-dt-final-20261113.md`](../../docs/archive/validation/sp12-r2-config-dt-final-20261113.md).
+`sp12-r2-config-dt-final-20261113.md` (private evidence).
 
 ## 2026-11-13 source-coverage additions
 
@@ -106,7 +106,7 @@ context-bank driver and Hamoa DTS changes. Two complete replays from the
 authenticated signed CachyOS 7.3.1-1 archive produced the same final tree
 digest `192c5187bca08d67cb167cf7be77996fdde7f4c3717e19bb200775bf48a161fb`.
 The replay record is
-[`sp12-r2-source-replay-20261113-final-51-patch-series.json`](../../docs/archive/validation/sp12-r2-source-replay-20261113-final-51-patch-series.json).
+`sp12-r2-source-replay-20261113-final-51-patch-series.json` (private evidence).
 
 The new binding patches are Vikash Garodia's v6 01/12 and 02/12 messages from
 the [Venus common schema](https://lists.openwall.net/linux-kernel/2026/11/03/2724)
@@ -121,7 +121,7 @@ package rebuild, package identity refresh, installer rebuild, and runtime
 qualification remain pending. The camera source closure is included; physical
 camera operation remains unqualified. Attribution, license, DCO, and public
 redistribution remain open. The earlier
-[`49-entry coverage report`](../../docs/archive/validation/sp12-r2-source-coverage-20261113.md)
+`49-entry coverage report` (private evidence)
 and replay remain historical evidence for the predecessor candidate.
 
 This is authorization for private engineering work only. Missing mail headers

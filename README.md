@@ -1,26 +1,29 @@
 # PsyCachy
 
-PsyCachy builds and installs pinned custom Linux kernels for AMD64 and ARM64
-Ubuntu 26.10 desktop systems. Both installer builders are experimental; the
-ARM64 installer UI and several release checks are still open.
+Two private Ubuntu 26.10 desktop ISOs, built around patched CachyOS Linux
+7.3.5: ARM64 for the Surface Pro 12 and AMD64 for the B550I. Each image must
+run its target kernel in **Try**, **Install**, and the **default installed boot**.
 
-## Start here
+Start with the [release backlog](docs/BACKLOG.md) for each target's status,
+next decision, open hardware issues, and acceptance criteria. To review a patch, follow its link to the
+target manifest. To check a checkout, run `bash tests/static-check.sh` from the
+root on Linux with the project toolchain.
 
-1. Read the [ship checklist](docs/SHIP-CHECKLIST.md) for current status,
-   remaining work, acceptance criteria, and the evidence each task must leave.
-2. Read the [implementation queue](docs/IMPLEMENTATION-QUEUE.md) before
-   changing code. It separates code work from tests and qualification.
-3. Use the archived build and recovery procedures only when the checklist
-   points to them. Preserve the verified SP12 fallback and leave the
-   unresolved recovery-panel route untouched.
+## Repository map
 
-## Main entry points
+| Where | What lives there |
+|---|---|
+| [`config/kernel/`](config/kernel/) | Full kernel configs: `b550i-C` and `sp12-C` are the selected baselines; `sp12-R` is the comparison config |
+| [`config/`](config/) | Builder inputs: package and ISO pins, shared packaging patches, legacy config fixtures |
+| [`targets/`](targets/) | Per-machine manifests, platform patches, boot helpers and provenance |
+| `build.sh` | Package-builder entry point. Its default source pin is historical; use the backlog to identify C inputs. |
+| `iso/build.sh`, `iso/build-arm64.sh`, `iso/build-sp12-live` | AMD64 installer, ARM64 installer, and Surface live-image builders |
+| `tests/`, `tools/` | Repository checks and fixtures; target audits, recovery and performance tools |
+| `output/` | Local generated artifacts and run evidence; not included in Git |
+| [`docs/archive/`](docs/archive/README.md) | Sanitized evidence summaries; look up by task |
 
-- `build.sh` builds kernel packages.
-- `iso/build.sh` builds the AMD64 installer ISO.
-- `iso/build-arm64.sh` builds the ARM64 installer ISO.
-- `bash tests/static-check.sh` runs the repository's static test suite.
-
-Generated packages, ISOs, and VM files live under ignored `output/`; they are
-not included in Git. See the checklist for the pinned inputs and current VM
-results.
+Local-only checkouts and vendor or scratch files belong in ignored
+`.local-work/`, separate from disposable build output. On the development
+machine, `.local-work/checkouts/` contains `phase0-work` and `sp121-reference`;
+older provenance records use their original root-relative names. Published
+manifests and dated reports likewise retain the config paths used at build time.

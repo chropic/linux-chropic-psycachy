@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "status": "private-prestable-test-only-not-for-release",
+  "candidate": "C",
+  "target": "B550I / AMD64 / Ryzen 7 5800X3D",
+  "kernel_release": "7.3.5-psycachy-b550i-c",
+  "debian_version": "7.3.5-1psycachy1~prestable20261119.1",
+  "architecture": "amd64",
+  "cpu_target": "znver3",
+  "cpu_codegen": {
+    "c": "KCFLAGS=-march=znver3",
+    "rust": "KRUSTFLAGS=-Ctarget-cpu=znver3"
+  },
+  "source_archive_sha256": "bb22ad99e1042fae883bab71366f8339367b74c045004fe92ad4923339092e07",
+  "source_archive_signer_fingerprint": "E8B9AA39F054E30E8290D492C3C4820857F654FE",
+  "source_archive_signer_trust": "not-established",
+  "input_manifest_sha256": "79502913cb87fbb1f88ad8e8888b2b9b01f3b63e6c1d4b719f45faebb178e8bf",
+  "build_context_lock": {
+    "path": "output/prestable-20261118/package-candidates/b550i-C/native-b550i-20261119-run2/BUILD-CONTEXT.sha256",
+    "sha256": "22afb9219564925ea7946bf06ea8765ace62f86fea4a0d5c77ac5def73047b9f"
+  },
+  "source_tree_sha256": "bc72e86abad9625296ebd4f0624dc9b9572cbc58766d6b7a10de9fb42b67c837",
+  "config_seed_sha256": "3e6665aab949a1a7ac68d7d4620c339ff69abf7af5d0fe97fde46d3e98d79cb1",
+  "resolved_config_sha256": "ebf93896558751f14c3e7fcf91500ed74e364ad689105f418497c0f40d5e746e",
+  "config_resolution_sha256": "23b4d50d086c62e750d8b6fb7189b8e81436d7c782dcc990f24c83d226683f55",
+  "policy_audit_sha256": "3c620b61009b3bab22148bf27565e5eb8857ee79bd29cffe637152d58f12534e",
+  "toolchain": {
+    "clang": "Ubuntu clang version 22.1.8 (1ubuntu1)",
+    "lld": "Ubuntu LLD 22.1.8",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14) (built from a source tarball)",
+    "pahole": "1.31",
+    "packages_manifest_sha256": "0c0498bd72ce5aa80b56b2c18811138899c37e1b7ab238558be952935e76eed4"
+  },
+  "secure_boot": {
+    "certificate_binding": "per-install",
+    "kernel_certificate_sha256": null,
+    "module_certificate_sha256": null,
+    "required_module_signers": {
+      "nvidia": "PsyCachy DKMS Module Signing",
+      "nvidia-drm": "PsyCachy DKMS Module Signing",
+      "nvidia-modeset": "PsyCachy DKMS Module Signing",
+      "nvidia-peermem": "PsyCachy DKMS Module Signing",
+      "nvidia-uvm": "PsyCachy DKMS Module Signing"
+    },
+    "required_loaded_modules": [
+      "nvidia"
+    ]
+  },
+  "patches": [
+    {
+      "id": "shared-bore-scheduler",
+      "sha256": "d2eaa8e8dbf1f56bfb304f8b437a7dc30a65408f90a93701367baf8adc2173b4"
+    },
+    {
+      "id": "shared-slub-canary",
+      "sha256": "ef912876e259d95321778268f3ec448932f2f76778b3092d38b694e75aa51f17"
+    }
+  ],
+  "kernel_payload_sha256": "abf8b32786b529fb89a68d49e861914a2c0f53e6098354585cd51e69d124ec40",
+  "module_signing_certificate_sha256": "9136b883af7e31181c69fcc34a6e49042fddb615433bc1a0e0f5157ce34d008f",
+  "module_signing_key_lifetime": "ephemeral; private build key not retained",
+  "packages": [
+    {
+      "name": "linux-headers-7.3.5-psycachy-b550i-c",
+      "filename": "linux-headers-7.3.5-psycachy-b550i-c_7.3.5-1psycachy1~prestable20261119.1_amd64.deb",
+      "path": "output/prestable-20261118/package-candidates/b550i-C/native-b550i-20261119-run2/linux-headers-7.3.5-psycachy-b550i-c_7.3.5-1psycachy1~prestable20261119.1_amd64.deb",
+      "size_bytes": 10261018,
+      "sha256": "a7d77b55f93853b759cd2674defead4ba09a01e851cce3fab88d6fd6680ccc31"
+    },
+    {
+      "name": "linux-image-7.3.5-psycachy-b550i-c",
+      "filename": "linux-image-7.3.5-psycachy-b550i-c_7.3.5-1psycachy1~prestable20261119.1_amd64.deb",
+      "path": "output/prestable-20261118/package-candidates/b550i-C/native-b550i-20261119-run2/linux-image-7.3.5-psycachy-b550i-c_7.3.5-1psycachy1~prestable20261119.1_amd64.deb",
+      "size_bytes": 151158116,
+      "sha256": "3b97b716953b9cdd53df99ed977e8113bde7d1e722a8e07ba114330aad66f7ff"
+    }
+  ],
+  "package_checks": {
+    "architecture": "amd64",
+    "policy_audit_checks_passed": 23,
+    "image_module_entries": 6591,
+    "packaged_headers_config_matches_resolved_config": true,
+    "effective_kbuild_cpu_target": "znver3",
+    "prestable_version_sorts_below_release_version": true,
+    "module_signatures_independently_validated": false
+  },
+  "release_status": "pre-stable; not shippable"
+}

@@ -1,5 +1,0 @@
-The install run used QEMU 11.1.3 TCG, machine virt with GICv3, cortex-a72, 6 vCPUs and 6 GiB RAM. Networking was disabled. The standalone disposable target was the only writable disk; the r2 package ISO and copied protected sentinel were attached read-only. The fresh UEFI variable copy was local to the run.
-
-The media-free boot used a child QCOW2 overlay backed by the completed post-install clone, a copied disposable UEFI variable file, and the read-only sentinel. The package ISO was detached and networking remained disabled. It booted through the Ubuntu shim/GRUB entry, not through physical firmware or the custom SP12 fallback EFI path.
-
-The shell credential was randomly generated for this disposable guest, stored only in a mode-0600 temporary file, used to reset the cloned account, and excluded from this repository evidence. No retained VM base, physical disk, Ventoy media, firmware order, or RPMB data was written.

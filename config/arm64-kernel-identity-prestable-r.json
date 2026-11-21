@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "kernel_version": "7.3.5",
+  "localversion": "-psycachy-sp121-r",
+  "debian_version": "7.3.5-1psycachy1~prestable20261119.1",
+  "architecture": "arm64"
+}

@@ -5,6 +5,7 @@ import os
 import pathlib
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -48,6 +49,26 @@ class Arm64PackageVerificationTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp_dir.cleanup()
+
+    def test_verifier_loads_selected_candidate_identity_from_environment(self):
+        identity = {
+            "schema_version": 1,
+            "kernel_version": "7.3.5",
+            "localversion": "-psycachy-sp121-r",
+            "debian_version": "7.3.5-1psycachy1~prestable20261119.1",
+            "architecture": "arm64",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            identity_path = pathlib.Path(directory) / "candidate-identity.json"
+            identity_path.write_text(json.dumps(identity))
+            env = os.environ.copy()
+            env["SP121_KERNEL_IDENTITY"] = str(identity_path)
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "tools/verify-arm64-packages.py"), "--help"],
+                env=env, text=True, capture_output=True,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("packages_dir", result.stdout)
 
     def create_valid_packages(self, pkg_dir: pathlib.Path = None) -> tuple:
         target_dir = pkg_dir or self.packages_dir

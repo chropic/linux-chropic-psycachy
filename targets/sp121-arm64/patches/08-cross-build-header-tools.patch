@@ -24,9 +24,11 @@ diff --git a/scripts/package/install-extmod-build b/scripts/package/install-extm
 +	fi
 +	rm -f "${destdir}/tools/bpf/resolve_btfids/fixdep"
  	rm -f "${destdir}/scripts/Kbuild"
-@@ -73,2 +82,3 @@
+@@ -73,2 +82,5 @@
  fi
-+find "${destdir}/tools/bpf/resolve_btfids" -type f -name fixdep -delete
++if [ -d "${destdir}/tools/bpf/resolve_btfids" ]; then
++	find "${destdir}/tools/bpf/resolve_btfids" -type f -name fixdep -delete
++fi
  
 diff --git a/tools/build/Makefile.include b/tools/build/Makefile.include
 --- a/tools/build/Makefile.include

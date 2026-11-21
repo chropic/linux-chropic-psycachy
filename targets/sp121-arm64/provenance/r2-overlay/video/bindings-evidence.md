@@ -20,4 +20,4 @@ passed two replays from the authenticated CachyOS 7.3.1-1 archive. The Venus
 common and SM8550 Iris bindings passed targeted `dt_binding_check` and
 `yamllint`; a fresh SP12 DTB compiled and passed `dt-validate` with zero
 diagnostics. See
-[`sp12-r2-source-dt-schema-validation-20261113.md`](../../../../../docs/archive/validation/sp12-r2-source-dt-schema-validation-20261113.md).
+`sp12-r2-source-dt-schema-validation-20261113.md` (private evidence).

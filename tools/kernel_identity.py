@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -34,7 +35,9 @@ def derive_identity(data):
             "package_filenames": filenames}
 
 
-def load_identity(path=DEFAULT_IDENTITY):
+def load_identity(path=None):
+    if path is None:
+        path = os.environ.get("SP121_KERNEL_IDENTITY") or DEFAULT_IDENTITY
     return derive_identity(json.loads(pathlib.Path(path).read_text(encoding="utf-8")))
 
 

@@ -1,4 +1,8 @@
 /output/
+/.local-work/
+/docs/archive/*
+!/docs/archive/README.md
+/.aws/
 /work/
 *.deb
 *.buildinfo

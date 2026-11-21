@@ -1,0 +1,3 @@
+# Cold evidence is opt-in for routine source searches. Open a report directly,
+# or use rg --no-ignore with a specific archive subdirectory.
+/docs/archive/

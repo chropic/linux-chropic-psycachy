@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "status": "private-prestable-test-only-not-for-release",
+  "candidate": "C",
+  "kernel_release": "7.3.5-psycachy-sp121-c",
+  "debian_version": "7.3.5-1psycachy1~prestable20261119.1",
+  "architecture": "arm64",
+  "source_archive_sha256": "bb22ad99e1042fae883bab71366f8339367b74c045004fe92ad4923339092e07",
+  "source_archive_signer_fingerprint": "E8B9AA39F054E30E8290D492C3C4820857F654FE",
+  "source_archive_signer_trust": "not-established",
+  "input_manifest_sha256": "d2ce07e0741649f36bcfb207fb560710a3cfb283c366dd25d1dd7371e5967d3c",
+  "kernel_identity_sha256": "f463071194088725d58bc8f4197cb5db6199f4372b97918d8b092ee03cf0096d",
+  "config_seed_sha256": "8fe3d35a7c714f5249c507a7ee600396f0a6cbb16d729d4d6e17fd03eba327c6",
+  "build_metadata_config_sha256": "8fe3d35a7c714f5249c507a7ee600396f0a6cbb16d729d4d6e17fd03eba327c6",
+  "resolved_config_sha256": "ba1f5fef1fd30e4a61ca82ec842d16dae21b2c2d0cbe25eb1c1711f1178cd430",
+  "dtb_path": "qcom/x1p42100-microsoft-sp12in.dtb",
+  "dtb_sha256": "dbdd4e6286f4a50e207907beb6c22c0f7165260857f0b072c9b03d15ec7c7a63",
+  "dtb_build_id": "sha256:f203c73d8d965fa30fb34e7a92e4660986ecaf07703386bcf127accc8d50c700",
+  "packages": [
+    {
+      "name": "linux-headers-7.3.5-psycachy-sp121-c",
+      "filename": "linux-headers-7.3.5-psycachy-sp121-c_7.3.5-1psycachy1~prestable20261119.1_arm64.deb",
+      "sha256": "1245a0ec7757cdae77a9b95f888af790971507319d4f45d6907500a7623630b1"
+    },
+    {
+      "name": "linux-image-7.3.5-psycachy-sp121-c",
+      "filename": "linux-image-7.3.5-psycachy-sp121-c_7.3.5-1psycachy1~prestable20261119.1_arm64.deb",
+      "sha256": "8b7b523cf81fe0fc1454e846373472149e08401a41329862acd8c49d670d15ca"
+    }
+  ],
+  "source_tree_sha256": "2c31d51b6bd16ef2c1e1f11a4c04b51b6604bb0dd4b5a5158b6299ae57077f9f",
+  "policy_fragment_sha256": "7dc082b99dd8066f364b3777a9a6a63cd2d73623facafa5d991295bd3b70bbdb",
+  "kernel_payload_sha256": "976ef6696c2616ee6af6b1050b61a01b4b2c7e09ee8be55ec565c2dc4a4f9c76",
+  "raw_image_sha256": "2d07d7b52fc33f35a508519075f66ff261e8d827425a4bfde1afb628053ae00c",
+  "module_signing_certificate_sha256": "a7224debe607e02b91f757c39a7bd5af4128796c6b43d845ae775c67ab4a8c10",
+  "module_signing_fingerprint_sha256": "a7224debe607e02b91f757c39a7bd5af4128796c6b43d845ae775c67ab4a8c10",
+  "module_signing_key_id": "71:6A:C9:7F:4B:96:AD:8A:7C:17:98:09:C3:0F:1D:F2:A4:79:A2:5D",
+  "module_signing_key_lifetime": "ephemeral; private build key not retained",
+  "scheduler": "BORE",
+  "scheduler_patch_sha256": "d2eaa8e8dbf1f56bfb304f8b437a7dc30a65408f90a93701367baf8adc2173b4",
+  "release_status": "pre-stable; not shippable"
+}

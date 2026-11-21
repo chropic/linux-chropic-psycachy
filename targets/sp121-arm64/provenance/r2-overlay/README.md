@@ -26,11 +26,11 @@
   It retains all ten r1 entries and adds 41 r2 patches, including the USB,
   WCN7850, Hamoa Iris driver/DTS and binding closure, and arm_arch_timer source
   additions. The prior final37 replay record remains
-  [`sp12-r2-source-replay-20261113-final-37-patch-series.json`](../../../../docs/archive/validation/sp12-r2-source-replay-20261113-final-37-patch-series.json).
+  `sp12-r2-source-replay-20261113-final-37-patch-series.json` (private evidence).
   The superseded 49-entry replay record is
-  [`integrated-49-patch-replay.json`](../../../../docs/archive/validation/artifacts/sp12-r2-source-coverage-20261113/integrated-49-patch-replay.json).
+  `integrated-49-patch-replay.json` (private evidence).
   The active replay record is
-  [`sp12-r2-source-replay-20261113-final-51-patch-series.json`](../../../../docs/archive/validation/sp12-r2-source-replay-20261113-final-51-patch-series.json).
+  `sp12-r2-source-replay-20261113-final-51-patch-series.json` (private evidence).
 
 The active 51-entry series passed two complete sequential applications from
 the signed authenticated source archive. Both produced final source-tree
@@ -55,7 +55,7 @@ manifest checkpoint DTB compiled and passed the targeted schema checks, and
 `dt-validate` returned no diagnostics. The superseded final37 package build
 compiled and verified its manifest-bound SP12 DTB and build ID. Its package/DT evidence
 is summarized in
-[`sp12-r2-config-dt-final-20261113.md`](../../../../docs/archive/validation/sp12-r2-config-dt-final-20261113.md)
+`sp12-r2-config-dt-final-20261113.md` (private evidence)
 and pinned separately in
 [`config/arm64-iso-kernel-r2.json`](../../../../config/arm64-iso-kernel-r2.json).
 
@@ -63,7 +63,7 @@ The two Iris context-bank bindings also pass targeted `dt_binding_check` and
 `yamllint`; the fresh 51-entry SP12 DTB compiled and passed `dt-validate` with
 zero diagnostics. See
 [`bindings-evidence.md`](video/bindings-evidence.md) and
-[`sp12-r2-source-dt-schema-validation-20261113.md`](../../../../docs/archive/validation/sp12-r2-source-dt-schema-validation-20261113.md).
+`sp12-r2-source-dt-schema-validation-20261113.md` (private evidence).
 
 No authorship, sign-off, or redistribution permission is inferred for a
 rebased patch. Original source patch content and notices are retained for

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the locally retained SP12 platform inputs before any use."""
 
+import argparse
 import hashlib
 import json
 import pathlib
@@ -12,7 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1] / "targets/sp121-arm64"
 EXPECTED_MANIFEST_SHA256 = "6040fc283d5afe04ddfa69d1bc418ead62b5de2984b73f42c22e144a6ca74e14"
 PACKAGING_PATCHES = (
     ("patches/07-ubuntu-2610-debhelper-compat.patch", "c266d89141be66eafc8b24d72362a173dfffc19bd613df5751ef49764bc581ca"),
-    ("patches/08-cross-build-header-tools.patch", "b093bb7721bedb48efdfffd73199dcfa9bab2f5b46b766f1c07052dfb642b597"),
+    ("patches/08-cross-build-header-tools.patch", "3e9f522ec06ad7e0ecba25e237189cc5575028e5720ec399511e329383f7e63b"),
 )
 
 
@@ -74,10 +75,31 @@ def verify_series_inputs(series):
         seen_resolved_paths.add(path)
 
 
-def main():
-    manifest_path = ROOT / "inputs.json"
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", type=pathlib.Path,
+                        help="verify a candidate manifest instead of the pinned active manifest")
+    parser.add_argument("--expected-sha256",
+                        help="required digest when verifying a non-active candidate manifest")
+    args = parser.parse_args(argv)
+
+    manifest_path = args.manifest or ROOT / "inputs.json"
+    if manifest_path.is_symlink():
+        raise ValueError("SP12 input manifest must not be a symlink")
+    manifest_path = manifest_path.resolve(strict=True)
+    if not manifest_path.is_file() or not manifest_path.is_relative_to(ROOT.resolve()):
+        raise ValueError("SP12 input manifest must be a regular file inside the target directory")
+    active_manifest = (ROOT / "inputs.json").resolve(strict=True)
+    expected_manifest_sha256 = args.expected_sha256
+    if expected_manifest_sha256 is None:
+        if manifest_path != active_manifest:
+            raise ValueError("candidate manifest verification requires --expected-sha256")
+        expected_manifest_sha256 = EXPECTED_MANIFEST_SHA256
+    elif not re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256):
+        raise ValueError("expected manifest SHA-256 must be 64 lowercase hexadecimal characters")
+
     raw = manifest_path.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != EXPECTED_MANIFEST_SHA256:
+    if hashlib.sha256(raw).hexdigest() != expected_manifest_sha256:
         raise ValueError("SP12 input manifest checksum mismatch")
     manifest = json.loads(raw)
     validate_manifest_structure(manifest)
@@ -95,7 +117,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        main(sys.argv[1:])
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)

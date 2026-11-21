@@ -1,2 +1,0 @@
-linuxdisk: rd_bytes=8228068864 wr_bytes=17259126272 rd_operations=116242 wr_operations=77522 flush_operations=59166 wr_total_time_ns=92480773342 rd_total_time_ns=12916565565 flush_total_time_ns=8764727276 rd_merged=2831 wr_merged=9060 idle_time_ns=6716565435
-otherdisk: rd_bytes=44959744 wr_bytes=0 rd_operations=1142 wr_operations=0 flush_operations=0 wr_total_time_ns=0 rd_total_time_ns=14403508 flush_total_time_ns=0 rd_merged=8 wr_merged=0 idle_time_ns=1064673963877

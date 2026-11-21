@@ -1,5 +1,0 @@
-The package-install guest received QMP system_powerdown and reached “reboot: Power down”; QEMU exited 0. qemu-img check reported no errors on the completed post-install target (64 GiB virtual, 17.08% allocated, no compression).
-
-The media-free/selector guest received QMP system_powerdown; QEMU exited 0. qemu-img check reported no errors on the child overlay (64 GiB virtual, 0.44% allocated, no compression).
-
-The retained target, original UEFI variables, and original protected sentinel retained their pre-run SHA-256 values. The disposable sentinel copy exactly matched the original sentinel hash.

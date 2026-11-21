@@ -8,7 +8,91 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 # shellcheck source=config/source-pin.sh
 . "$root/config/source-pin.sh"
 target_dir="$root/targets/sp121-arm64"
-identity="$root/config/arm64-kernel-identity.json"
+canonical_identity="$root/config/arm64-kernel-identity.json"
+identity=${SP121_KERNEL_IDENTITY:-$canonical_identity}
+[[ -f $identity && ! -L $identity ]] || {
+  echo 'SP121_KERNEL_IDENTITY must name a regular non-symlink file' >&2; exit 1;
+}
+identity=$(realpath -e -- "$identity")
+case "$identity" in
+  "$root/config/"*) ;;
+  *) echo 'SP121_KERNEL_IDENTITY must be inside the repository config directory' >&2; exit 1 ;;
+esac
+expected_identity_sha256=${SP121_EXPECT_KERNEL_IDENTITY_SHA256:-}
+if [[ $identity != "$canonical_identity" ]]; then
+  [[ $expected_identity_sha256 =~ ^[a-f0-9]{64}$ ]] || {
+    echo 'candidate SP121_KERNEL_IDENTITY requires SP121_EXPECT_KERNEL_IDENTITY_SHA256' >&2; exit 1;
+  }
+fi
+if [[ -n $expected_identity_sha256 ]]; then
+  actual_identity_sha256=$(sha256sum "$identity")
+  actual_identity_sha256=${actual_identity_sha256%% *}
+  [[ $actual_identity_sha256 == "$expected_identity_sha256" ]] || {
+    echo 'SP121 kernel identity checksum mismatch' >&2; exit 1;
+  }
+fi
+canonical_manifest="$target_dir/inputs.json"
+input_manifest=${SP121_INPUT_MANIFEST:-$canonical_manifest}
+[[ -f $input_manifest && ! -L $input_manifest ]] || {
+  echo 'SP121_INPUT_MANIFEST must name a regular non-symlink file' >&2; exit 1;
+}
+input_manifest=$(realpath -e -- "$input_manifest")
+case "$input_manifest" in
+  "$target_dir/"*) ;;
+  *) echo 'SP121_INPUT_MANIFEST must be inside the SP12 target directory' >&2; exit 1 ;;
+esac
+expected_manifest_sha256=${SP121_EXPECT_INPUT_MANIFEST_SHA256:-}
+if [[ $input_manifest != "$canonical_manifest" ]]; then
+  [[ $expected_manifest_sha256 =~ ^[a-f0-9]{64}$ ]] || {
+    echo 'candidate SP121_INPUT_MANIFEST requires SP121_EXPECT_INPUT_MANIFEST_SHA256' >&2; exit 1;
+  }
+fi
+bore_patch=${SP121_BORE_PATCH:-}
+expected_bore_sha256=${SP121_EXPECT_BORE_PATCH_SHA256:-}
+if [[ -n $bore_patch ]]; then
+  [[ -f $bore_patch && ! -L $bore_patch ]] || {
+    echo 'SP121_BORE_PATCH must name a regular non-symlink file' >&2; exit 1;
+  }
+  bore_patch=$(realpath -e -- "$bore_patch")
+  case "$bore_patch" in
+    "$target_dir/"*) ;;
+    *) echo 'SP121_BORE_PATCH must be inside the SP12 target directory' >&2; exit 1 ;;
+  esac
+  [[ $expected_bore_sha256 =~ ^[a-f0-9]{64}$ ]] || {
+    echo 'SP121_BORE_PATCH requires SP121_EXPECT_BORE_PATCH_SHA256' >&2; exit 1;
+  }
+  actual_bore_sha256=$(sha256sum "$bore_patch")
+  actual_bore_sha256=${actual_bore_sha256%% *}
+  [[ $actual_bore_sha256 == "$expected_bore_sha256" ]] || {
+    echo 'SP121 BORE patch checksum mismatch' >&2; exit 1;
+  }
+elif [[ -n $expected_bore_sha256 ]]; then
+  echo 'SP121_EXPECT_BORE_PATCH_SHA256 requires SP121_BORE_PATCH' >&2
+  exit 1
+fi
+slub_canary_patch=${SP121_SLUB_CANARY_PATCH:-}
+expected_slub_canary_sha256=${SP121_EXPECT_SLUB_CANARY_PATCH_SHA256:-}
+if [[ -n $slub_canary_patch ]]; then
+  [[ -f $slub_canary_patch && ! -L $slub_canary_patch ]] || {
+    echo 'SP121_SLUB_CANARY_PATCH must name a regular non-symlink file' >&2; exit 1;
+  }
+  slub_canary_patch=$(realpath -e -- "$slub_canary_patch")
+  case "$slub_canary_patch" in
+    "$target_dir/"*) ;;
+    *) echo 'SP121_SLUB_CANARY_PATCH must be inside the SP12 target directory' >&2; exit 1 ;;
+  esac
+  [[ $expected_slub_canary_sha256 =~ ^[a-f0-9]{64}$ ]] || {
+    echo 'SP121_SLUB_CANARY_PATCH requires SP121_EXPECT_SLUB_CANARY_PATCH_SHA256' >&2; exit 1;
+  }
+  actual_slub_canary_sha256=$(sha256sum "$slub_canary_patch")
+  actual_slub_canary_sha256=${actual_slub_canary_sha256%% *}
+  [[ $actual_slub_canary_sha256 == "$expected_slub_canary_sha256" ]] || {
+    echo 'SP121 SLUB-canary patch checksum mismatch' >&2; exit 1;
+  }
+elif [[ -n $expected_slub_canary_sha256 ]]; then
+  echo 'SP121_EXPECT_SLUB_CANARY_PATCH_SHA256 requires SP121_SLUB_CANARY_PATCH' >&2
+  exit 1
+fi
 identity_field() { python3 "$root/tools/kernel_identity.py" --identity "$identity" --field "$1"; }
 kernel_version=$(identity_field kernel_version)
 localversion=$(identity_field localversion)
@@ -42,7 +126,11 @@ for package in libssl-dev:arm64 libdw-dev:arm64 libelf-dev:arm64 zlib1g-dev:arm6
   [[ $status == installed ]] || die "missing required ARM64 cross-build package: $package"
 done
 
-python3 "$root/tools/verify-sp121-inputs.py"
+input_verify_args=(--manifest "$input_manifest")
+if [[ -n $expected_manifest_sha256 ]]; then
+  input_verify_args+=(--expected-sha256 "$expected_manifest_sha256")
+fi
+python3 "$root/tools/verify-sp121-inputs.py" "${input_verify_args[@]}"
 
 if [[ -n ${PSYCACHY_SOURCE_ARCHIVE:-} || -n ${PSYCACHY_SOURCE_SIGNATURE:-} ]]; then
   [[ -n ${PSYCACHY_SOURCE_ARCHIVE:-} && -n ${PSYCACHY_SOURCE_SIGNATURE:-} ]] || \
@@ -82,8 +170,8 @@ tar -xzf "$archive" -C "$work"
 source_dir="$work/$RELEASE"
 [[ -f $source_dir/Makefile && $(make -s -C "$source_dir" kernelversion) == "$kernel_version" ]] || die 'source version mismatch'
 
-# Apply SP12 platform patches (from inputs.json)
-mapfile -t patches < <(python3 - "$target_dir/inputs.json" <<'PY'
+# Apply SP12 platform patches from the selected, digest-pinned manifest.
+mapfile -t patches < <(python3 - "$input_manifest" <<'PY'
 import json, sys
 for entry in json.load(open(sys.argv[1], encoding="utf-8"))["series"]:
     print(entry["path"])
@@ -93,6 +181,14 @@ for patch in "${patches[@]}"; do
   git -C "$source_dir" apply --check --no-index "$target_dir/$patch"
   git -C "$source_dir" apply --no-index "$target_dir/$patch"
 done
+if [[ -n $bore_patch ]]; then
+  git -C "$source_dir" apply --check --no-index "$bore_patch"
+  git -C "$source_dir" apply --no-index "$bore_patch"
+fi
+if [[ -n $slub_canary_patch ]]; then
+  git -C "$source_dir" apply --check --no-index "$slub_canary_patch"
+  git -C "$source_dir" apply --no-index "$slub_canary_patch"
+fi
 
 # Adapt generated package metadata to Ubuntu 26.10 and build the packaged
 # external-module tools for the ARM64 target instead of the build host.
@@ -119,14 +215,59 @@ if [[ -n $approved_config ]]; then
 from pathlib import Path
 import sys
 
-approved = Path(sys.argv[1]).read_text()
-generated = Path(sys.argv[2]).read_text()
-if generated != approved:
-    raise SystemExit("Kconfig-normalized file differs from the approved config")
+def values(path):
+    result = {}
+    for line in Path(path).read_text().splitlines():
+        if line.startswith("CONFIG_") and "=" in line:
+            key, value = line.split("=", 1)
+        elif line.startswith("# CONFIG_") and line.endswith(" is not set"):
+            key, value = line[2:-11], "n"
+        else:
+            continue
+        if key in result:
+            raise SystemExit(f"duplicate Kconfig symbol: {key}")
+        result[key] = value
+    return result
+
+approved = values(sys.argv[1])
+generated = values(sys.argv[2])
+# Kconfig captures host probe results. These five exact deltas are expected
+# when resolving the pinned Debian-generated ARM64 snapshots with Ubuntu's
+# native ARM64 Clang/pahole toolchain; they do not change the selected kernel
+# policy or SP12 device configuration. Any other difference remains fatal.
+allowed = {
+    "CONFIG_CC_CAN_LINK": ("n", "y"),
+    "CONFIG_CC_VERSION_TEXT": (
+        '"Debian clang version 22.1.8 (1~deb13u4)"',
+        '"Ubuntu clang version 22.1.8 (1ubuntu1)"',
+    ),
+    "CONFIG_PAHOLE_VERSION": ("0", "131"),
+    "CONFIG_PAHOLE_HAS_BTF_TAG": ("n", "y"),
+    "CONFIG_PAHOLE_HAS_LANG_EXCLUDE": ("n", "y"),
+}
+changed = []
+unexpected = []
+for key in sorted(approved.keys() | generated.keys()):
+    before = approved.get(key, "n")
+    after = generated.get(key, "n")
+    if before == after:
+        continue
+    pair = (before, after)
+    if allowed.get(key) != pair:
+        unexpected.append((key, before, after))
+    else:
+        changed.append((key, before, after))
+if unexpected:
+    details = ", ".join(f"{key}: {before!r} -> {after!r}"
+                        for key, before, after in unexpected)
+    raise SystemExit("Kconfig differs from the approved config beyond pinned "
+                     f"host-probe deltas: {details}")
+for key, before, after in changed:
+    print(f"accepted host-probe delta {key}: {before!r} -> {after!r}")
 PY
   config_sha256=$(sha256sum "$work/approved-config.config")
   config_sha256=${config_sha256%% *}
-  echo 'Imported approved config; Kconfig resolved only CONFIG_DRM_MSM_VALIDATE_XML=n as an explicit unset comment.'
+  echo 'Imported approved config; only the pinned ARM64 host-probe deltas were accepted.'
 else
   cp "$target_dir/config.seed" "$work/config/.config"
   "$source_dir/scripts/config" --file "$work/config/.config" --set-str LOCALVERSION "$localversion" --disable LOCALVERSION_AUTO
@@ -149,8 +290,20 @@ if [[ -n $approved_config ]]; then
 fi
 python3 "$root/tools/audit-release-policy.py" --arch arm64 \
   --output "$work/policy-audit.json" "$audit_config"
-python3 "$root/tools/audit-sp121-config.py" "$audit_config" \
-  --output "$work/config-audit.json"
+if [[ -n $approved_config ]]; then
+  # The pre-stable snapshot is already resolved and pinned against 7.3.5-2.
+  # Check its SP12 feature closure directly; the 7.3.1 seed-delta review is
+  # retained separately in the candidate config diff.
+  python3 "$root/tools/audit-sp121-config.py" --seed "$audit_config" \
+    "$audit_config" --output "$work/config-audit.json"
+else
+  python3 "$root/tools/audit-sp121-config.py" "$audit_config" \
+    --output "$work/config-audit.json"
+fi
+if [[ -n $approved_config ]]; then
+  python3 "$root/tools/audit-release-policy.py" --arch arm64 \
+    "$work/config/.config" >/dev/null
+fi
 
 release=$(KCONFIG_NOSILENTUPDATE=1 make -s -C "$source_dir" O="$work/config" ARCH=arm64 LLVM=-22 kernelrelease)
 [[ $release == "$expected_release" ]] || die "unexpected ARM64 kernel release: $release"
@@ -163,7 +316,7 @@ config_sha256_after_prepare=${config_sha256_after_prepare%% *}
 # compiles any DTBs. Injection is confined to this disposable source tree.
 dtb_build_id=$(python3 "$root/tools/sp12_dtb_build_id.py" inject \
   --source-root "$source_dir" \
-  --input-manifest "$target_dir/inputs.json" --repo-root "$target_dir" \
+  --input-manifest "$input_manifest" --repo-root "$target_dir" \
   --resolved-config "$work/config/.config" --identity "$identity" \
   --config-seed "$target_dir/config.seed" \
   --source-archive-sha256 "$SOURCE_SHA256" \
@@ -213,8 +366,8 @@ python3 "$root/tools/verify-arm64-packages.py" "$work" \
   --expected-dtb-build-id "$dtb_build_id" \
   --output-report "$work/package-verification.json"
 
-image_name=$(python3 "$root/tools/kernel_identity.py" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')
-headers_name=$(python3 "$root/tools/kernel_identity.py" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["headers"])')
+image_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')
+headers_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["headers"])')
 images=("$work/$image_name")
 headers=("$work/$headers_name")
 [[ -f ${images[0]} && -f ${headers[0]} ]] || die 'built package filenames differ from ARM64 kernel identity'
@@ -251,6 +404,16 @@ fi
   echo "source_sha256=$SOURCE_SHA256"
   printf 'source_tree_sha256='; cat "$work/source-tree.sha256"
   echo "dtb_build_id=$dtb_build_id"
+  printf 'input_manifest_sha256='; sha256sum "$input_manifest" | cut -d ' ' -f 1
+  if [[ -n $bore_patch ]]; then
+    echo "bore_patch_sha256=$expected_bore_sha256"
+  fi
+  if [[ -n $slub_canary_patch ]]; then
+    echo "slub_canary_patch_sha256=$expected_slub_canary_sha256"
+  fi
+  printf 'kernel_identity_sha256='; sha256sum "$identity" | cut -d ' ' -f 1
+  echo "kernel_release=$release"
+  echo "package_version=$pkg_version"
   echo "config_sha256=$config_sha256"
   echo "kconfig_resolved_config_sha256=$resolved_config_sha256"
   printf 'module_audit_sha256='; sha256sum "$output/module-audit.json" | cut -d ' ' -f 1

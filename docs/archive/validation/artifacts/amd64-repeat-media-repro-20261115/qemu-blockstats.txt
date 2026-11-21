@@ -1,6 +1,0 @@
-QEMU 11.0.3/KVM, network disabled. HMP info blockstats after the selector cancellation and read-only target audit:
-pflash0: rd_bytes=0 wr_bytes=0 rd_operations=0 wr_operations=0 flush_operations=0
-pflash1: rd_bytes=0 wr_bytes=0 rd_operations=0 wr_operations=0 flush_operations=0
-linuxdisk: rd_bytes=50398208 wr_bytes=0 rd_operations=696 wr_operations=0 flush_operations=0
-otherdisk: rd_bytes=12783616 wr_bytes=0 rd_operations=323 wr_operations=0 flush_operations=0
-ide2-cd0: rd_bytes=7036453740 wr_bytes=0 rd_operations=117364 wr_operations=0 flush_operations=0

@@ -1,43 +1,0 @@
-sudo -S -p 'ARM64_SUDO_PROMPT_28' bash -c 'set -euo pipefail
-[?2004l[?2004h> printf '"'"'\n== active config ==\n'"'"'; cat /etc/sp12-linux/boot.conf
-[?2004l[?2004h> printf '"'"'\n== exact ESP payload matches ==\n'"'"'
-[?2004l[?2004h> cmp -s /boot/vmlinuz-7.3.1-psycachy-sp121-r2 /boot/efi/sp12/vmlinuz; echo '"'"'r2 kernel: MATCH'"'"'
-[?2004l[?2004h> cmp -s /boot/initrd.img-7.3.1-psycachy-sp121-r2 /boot/efi/sp12/initrd.img; echo '"'"'r2 initramfs: MATCH'"'"'
-[?2004l[?2004h> cmp -s /boot/dtb-7.3.1-psycachy-sp121-r2 /boot/efi/sp12/dtb; echo '"'"'r2 DTB: MATCH'"'"'
-[?2004l[?2004h> test -f /boot/efi/sp12/SP12BOOT; echo '"'"'SP12BOOT marker: PRESENT'"'"'
-[?2004l[?2004h> findmnt -n -o SOURCE,TARGET,FSTYPE,OPTIONS /boot/efi
-[?2004l[?2004h> sha256sum /boot/efi/sp12/vmlinuz /boot/efi/sp12/initrd.img /boot/efi/sp12/dtb
-[?2004l[?2004h> printf '"'"'\n== fallback package state ==\n'"'"'
-[?2004l[?2004h> dpkg --audit
-[?2004l[?2004h> dpkg-query -W -f='"'"'${binary:Package} ${Version} ${db:Status-Status}\n'"'"' linux-image-7.3.1-psycachy-sp121 linux-image-7.3.0-9-generic linux-headers-7.3.1-psycachy-sp121
-[?2004l[?2004h> printf '"'"'\n== recovery snapshot files ==\n'"'"'
-[?2004l[?2004h> find /var/lib/sp12-linux/recovery -maxdepth 3 -type f -printf '"'"'%P %s bytes\n'"'"' | sort
-[?2004l[?2004h> '
-[?2004l]3008;start=8974a885-89d1-448f-97d3-effc6eb2ca1d;type=command;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\
-== active config ==
-KVER=7.3.1-psycachy-sp121-r2
-DTB=/boot/dtb-7.3.1-psycachy-sp121-r2
-
-== exact ESP payload matches ==
-r2 kernel: MATCH
-r2 initramfs: MATCH
-r2 DTB: MATCH
-SP12BOOT marker: PRESENT
-/dev/vda1
-  /boot/efi
-    v ro,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortna
-bf8cf5c425473df49b03dbaf536bcc1b1ef20360d7f511c2a68f59d41c672451  /boot/efi/sp12/vmlinuz
-c8eb0a69b3f8ba70b4bcee69507105d6598f41ea314d27bded1a614c1d234fa3  /boot/efi/sp12/initrd.img
-274ceb42fb5f831adda4a5c4ef7b7196a4bb5a6ef4a927315149ff4bbf39eb40  /boot/efi/sp12/dtb
-
-== fallback package state ==
-linux-headers-7.3.1-psycachy-sp121 7.3.1-1psycachy1 installed
-linux-image-7.3.0-9-generic 7.3.0-9.9 installed
-linux-image-7.3.1-psycachy-sp121 7.3.1-1psycachy1 installed
-
-== recovery snapshot files ==
-dtb 201937 bytes
-initrd.img 48418297 bytes
-SHA256SUMS 221 bytes
-vmlinuz 17138176 bytes
-]3008;end=8974a885-89d1-448f-97d3-effc6eb2ca1d;exit=success\]3008;start=097a7ac7-fd5d-4d2c-a751-713bd2ca3559;type=shell;machineid=14126d15f4c44dfea21e1a4d2e1a82e0;user=lun;hostname=luna-arm64;bootid=e768ec90-7476-4f05-a3bb-6eb6d03fe61b;pid=1528;cwd=/home/lun\[?2004hlun@luna-arm64:~$ 

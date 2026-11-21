@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "status": "private-prestable-test-only-not-for-release",
+  "candidate": "C",
+  "target": "B550I / AMD64 / Ryzen 7 5800X3D",
+  "source": {
+    "release": "cachyos-7.3.5-2",
+    "archive": "output/prestable-20261118/inputs/cachyos-7.3.5-2.tar.gz",
+    "sha256": "bb22ad99e1042fae883bab71366f8339367b74c045004fe92ad4923339092e07",
+    "signer_key": "output/prestable-20261118/inputs/cachyos-signer.asc",
+    "signer_fingerprint": "E8B9AA39F054E30E8290D492C3C4820857F654FE",
+    "signer_trust": "not-established"
+  },
+  "kernel_release": "7.3.5-psycachy-b550i-c",
+  "debian_version": "7.3.5-1psycachy1~prestable20261119.1",
+  "cpu_target": "znver3",
+  "cpu_codegen": {
+    "c": "KCFLAGS=-march=znver3",
+    "rust": "KRUSTFLAGS=-Ctarget-cpu=znver3"
+  },
+  "config": {
+    "path": "output/prestable-20261118/configs/b550i-C.config",
+    "sha256": "3e6665aab949a1a7ac68d7d4620c339ff69abf7af5d0fe97fde46d3e98d79cb1"
+  },
+  "toolchain": {
+    "native_b550i": {
+      "clang": "Ubuntu clang version 22.1.8 (1ubuntu1)",
+      "lld": "Ubuntu LLD 22.1.8",
+      "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14) (built from a source tarball)",
+      "pahole": "1.31",
+      "effective_native_cpu_target": "znver3"
+    },
+    "debian_package_lock": "output/prestable-20261118/toolchain-debs/SHA256SUMS",
+    "debian_package_lock_sha256": "af37002a2c974b151f2dd23342bb55e7ceef7fb4602dbd17831441b6693c14ec"
+  },
+  "patches": [
+    {
+      "order": 1,
+      "id": "shared-bore-scheduler",
+      "path": "targets/sp121-arm64/patches/r2/scheduler/01-bore-cachy-7.3.5.patch",
+      "sha256": "d2eaa8e8dbf1f56bfb304f8b437a7dc30a65408f90a93701367baf8adc2173b4"
+    },
+    {
+      "order": 2,
+      "id": "shared-slub-canary",
+      "path": "targets/sp121-arm64/patches/r2/security/01-slub-canary-7.3.5.patch",
+      "sha256": "ef912876e259d95321778268f3ec448932f2f76778b3092d38b694e75aa51f17"
+    }
+  ],
+  "packaging_patches": [
+    {
+      "path": "config/patches/dkms-clang.patch",
+      "sha256": "1e543f84690f7935c7dcd927d785b032561e7caa789d5d114e91b3798b1b1663"
+    },
+    {
+      "path": "config/patches/headers-config.patch",
+      "sha256": "3fbfe37888f961f1cc3cd8278600851b56047b791270fc66f0b3d8fab33d60d9"
+    },
+    {
+      "path": "config/patches/ubuntu-package-dependencies.patch",
+      "sha256": "d938c88ddd54d285b44b0b0a7c352e0d77f568343edde9bd5b6708edbc842b55"
+    }
+  ],
+  "platform_patch_policy": "Do not carry SP12-only ARM64, Qualcomm, Surface, camera, audio, USB, PCIe, or video patches into this AMD64 target."
+}

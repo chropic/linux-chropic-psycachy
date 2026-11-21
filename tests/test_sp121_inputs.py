@@ -24,22 +24,22 @@ class InputIntegrityTests(unittest.TestCase):
             VERIFY.ROOT = copied
             try:
                 with contextlib.redirect_stdout(io.StringIO()):
-                    VERIFY.main()
+                    VERIFY.main([])
                 for patch_path, _expected_hash in VERIFY.PACKAGING_PATCHES:
                     packaging_patch = copied / patch_path
                     packaging_patch.write_bytes(packaging_patch.read_bytes() + b"\n# modified\n")
                     with self.assertRaisesRegex(ValueError, "packaging patch checksum mismatch"):
-                        VERIFY.main()
+                        VERIFY.main([])
                     # Restore pinned bytes before checking the next input.
                     packaging_patch.write_bytes((original / patch_path).read_bytes())
                 config = copied / "config.seed"
                 config.write_bytes(config.read_bytes() + b"\n# modified\n")
                 with self.assertRaisesRegex(ValueError, "input checksum mismatch"):
-                    VERIFY.main()
+                    VERIFY.main([])
                 manifest = copied / "inputs.json"
                 manifest.write_bytes(manifest.read_bytes() + b" ")
                 with self.assertRaisesRegex(ValueError, "manifest checksum mismatch"):
-                    VERIFY.main()
+                    VERIFY.main([])
             finally:
                 VERIFY.ROOT = original
 
@@ -66,6 +66,32 @@ class InputIntegrityTests(unittest.TestCase):
         unsafe_path["series"][0]["path"] = "patches/../patches/repeated.patch"
         with self.assertRaisesRegex(ValueError, "unsafe path"):
             VERIFY.validate_manifest_structure(unsafe_path)
+
+    def test_7_3_5_camera_candidate_verifies_rebased_iris_patch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            copied = pathlib.Path(directory) / "inputs"
+            shutil.copytree(VERIFY.ROOT, copied)
+            original = VERIFY.ROOT
+            VERIFY.ROOT = copied
+            try:
+                candidate = copied / "inputs.camera-lanes-candidate.json"
+                args = [
+                    "--manifest", str(candidate),
+                    "--expected-sha256",
+                    "d2ce07e0741649f36bcfb207fb560710a3cfb283c366dd25d1dd7371e5967d3c",
+                ]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    VERIFY.main(args)
+                manifest = json.loads(candidate.read_text())
+                iris = next(item for item in manifest["series"]
+                            if item["id"] == "iris-context-bank-devices")
+                self.assertEqual(
+                    iris["path"],
+                    "patches/r2/video/02-iris-context-bank-devices-7.3.5-rebased.patch",
+                )
+                VERIFY.verify_input_record(iris)
+            finally:
+                VERIFY.ROOT = original
 
     def test_resolved_duplicate_patch_paths_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -101,7 +127,7 @@ class InputIntegrityTests(unittest.TestCase):
                     mutate(manifest["series"])
                     (copied / "inputs.json").write_text(json.dumps(manifest, indent=2) + "\n")
                     with self.assertRaisesRegex(ValueError, "manifest checksum mismatch"):
-                        VERIFY.main()
+                        VERIFY.main([])
             finally:
                 VERIFY.ROOT = original
 
