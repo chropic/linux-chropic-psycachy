@@ -32,6 +32,20 @@ class DebianDependencyTests(unittest.TestCase):
         self.assertEqual(["kmod"], MODULE.missing_dependencies("kmod:arm64, linux-base", ["kmod", "linux-base"], "amd64"))
         self.assertEqual(["kmod"], MODULE.missing_dependencies("kmod:any, linux-base", ["kmod", "linux-base"], "amd64"))
 
+    def test_alternatives_do_not_satisfy_mandatory_dependency_checks(self):
+        self.assertEqual(
+            ["kmod", "linux-base"],
+            MODULE.missing_dependencies(
+                "kmod | linux-base, linux-headers-7.3 (= 7.3.5-1)",
+                ["kmod", "linux-base"],
+                "amd64",
+            ),
+        )
+        self.assertEqual(
+            ["kmod"],
+            MODULE.missing_dependencies("kmod | notkmod, linux-base", ["kmod", "linux-base"], "amd64"),
+        )
+
     def test_architecture_restrictions_are_evaluated_for_each_target(self):
         required = ["kmod", "linux-base"]
         self.assertEqual(

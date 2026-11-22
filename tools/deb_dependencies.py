@@ -71,9 +71,24 @@ def dependency_names_for_arch(field: str, target_arch: str) -> set[str]:
     }
 
 
+def mandatory_dependency_names_for_arch(field: str, target_arch: str) -> set[str]:
+    """Return names supplied by mandatory, non-alternative clauses."""
+    names = set()
+    for clause in field.replace("\n", " ").split(","):
+        if "|" in clause:
+            continue
+        for name, qualifier, restrictions in dependency_tokens(clause):
+            if (
+                qualifier in {None, "native", target_arch}
+                and restrictions_allow(target_arch, restrictions)
+            ):
+                names.add(name)
+    return names
+
+
 def missing_dependencies(field: str, required: list[str], native_arch: str) -> list[str]:
     """Require each package for this architecture or as an unqualified dependency."""
-    names = dependency_names_for_arch(field, native_arch)
+    names = mandatory_dependency_names_for_arch(field, native_arch)
     return [
         name for name in required
         if name not in names
