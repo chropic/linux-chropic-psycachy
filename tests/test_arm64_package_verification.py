@@ -346,6 +346,21 @@ class Arm64PackageVerificationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must be a symlink to"):
             verify_arm64_packages(self.packages_dir, expected_release=self.release)
 
+    def test_rejects_nonrelocatable_headers_gdb_helper_symlink(self):
+        self.create_valid_packages()
+        headers = next(self.packages_dir.glob("linux-headers-*_*.deb"))
+
+        def add_absolute_gdb_link(stage):
+            helper = stage / f"usr/src/linux-headers-{self.release}/scripts/gdb/linux"
+            helper.mkdir(parents=True)
+            (helper / "gdb.py").symlink_to(
+                "/home/builder/worktree/scripts/gdb/linux/gdb.py"
+            )
+
+        self.repack(headers, "repack-gdb-helper-link", add_absolute_gdb_link)
+        with self.assertRaisesRegex(ValueError, "non-relocatable GDB helper symlinks"):
+            verify_arm64_packages(self.packages_dir, expected_release=self.release)
+
     def test_rejects_non_executable_header_tools(self):
         self.create_valid_packages()
         headers = next(self.packages_dir.glob("linux-headers-*_*.deb"))

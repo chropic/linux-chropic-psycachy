@@ -102,6 +102,46 @@ def inspect_deb_entries(
     return entries, contents, executable_elfs
 
 
+def verify_headers_gdb_helpers(headers_pkg: pathlib.Path, headers_prefix: str) -> dict:
+    """Reject builder-tree symlinks in packaged kernel GDB helper files."""
+    process = subprocess.Popen(
+        ["dpkg-deb", "--fsys-tarfile", str(headers_pkg)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    helper_prefix = f"{headers_prefix}/scripts/gdb/linux/"
+    regular_files = 0
+    symlinks = []
+    unsupported = []
+    try:
+        with tarfile.open(fileobj=process.stdout, mode="r|*") as archive:
+            for member in archive:
+                name = member.name.removeprefix("./")
+                if not name.startswith(helper_prefix):
+                    continue
+                if member.isdir():
+                    continue
+                if member.isfile():
+                    regular_files += 1
+                elif member.issym() or member.islnk():
+                    symlinks.append((name, member.linkname))
+                else:
+                    unsupported.append(name)
+    finally:
+        process.stdout.close()
+    stderr = process.stderr.read().decode("utf-8", errors="replace")
+    process.stderr.close()
+    return_code = process.wait()
+    if return_code:
+        raise ValueError(f"Could not inspect headers GDB helpers: {stderr.strip()}")
+    if symlinks:
+        paths = ", ".join(f"{name} -> {target}" for name, target in symlinks[:3])
+        raise ValueError(f"headers package contains non-relocatable GDB helper symlinks: {paths}")
+    if unsupported:
+        raise ValueError(f"headers package contains unsupported GDB helper entry: {unsupported[0]}")
+    return {"regular_files": regular_files, "symlinks": 0}
+
+
 def verify_arm64_elf(path: str, payload: bytes) -> None:
     """Require an executable header tool to be an AArch64 little-endian ELF."""
     if len(payload) < 20 or payload[:4] != b"\x7fELF":
@@ -219,6 +259,7 @@ def verify_arm64_packages(
     # 6. Headers package verification
     hdr_contents = list_deb_contents(headers_pkg)
     hdr_prefix = f"usr/src/linux-headers-{expected_release}"
+    headers_gdb_helpers = verify_headers_gdb_helpers(headers_pkg, hdr_prefix)
     build_link = f"lib/modules/{expected_release}/build"
     sign_file = f"{hdr_prefix}/scripts/sign-file"
     modpost = f"{hdr_prefix}/scripts/mod/modpost"
@@ -282,6 +323,7 @@ def verify_arm64_packages(
             "fdt_magic_valid": True,
         },
         "dependencies_verified": ["kmod", "linux-base"],
+        "headers_gdb_helpers": headers_gdb_helpers,
         "headers_tools_verified": [
             f"{path.removeprefix(hdr_prefix + '/')}:AArch64-ELF"
             for path in sorted(executable_elfs)

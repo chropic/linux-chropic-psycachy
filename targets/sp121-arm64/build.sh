@@ -332,6 +332,8 @@ pkg_revision="${pkg_version#*-}"
 timestamp=${KBUILD_BUILD_TIMESTAMP:-$(date -u +'%Y-%m-%d %H:%M:%S +0000')}
 export KBUILD_BUILD_TIMESTAMP="$timestamp"
 export KBUILD_BUILD_VERSION="$pkg_revision"
+headers_source_date_epoch=${SOURCE_DATE_EPOCH:-$(date -u -d "$timestamp" +%s)}
+[[ $headers_source_date_epoch =~ ^[0-9]+$ ]] || die 'SOURCE_DATE_EPOCH must be a non-negative integer'
 
 # Pre-compile payloads in parallel, then package serially to avoid DTB installation race
 KCONFIG_NOSILENTUPDATE=1 make -C "$source_dir" O="$work/config" ARCH=arm64 LLVM=-22 -j"$jobs" \
@@ -359,18 +361,37 @@ config_sha256_after_package=${config_sha256_after_package%% *}
 [[ $config_sha256_after_package == "$resolved_config_sha256" ]] || \
   die "ARM64 config changed during package build: $config_sha256_after_package"
 
+# Locate the exact package pair before verification so the headers package can
+# be made relocatable before the package audit checks its GDB helper files.
+image_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')
+headers_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["headers"])')
+images=("$work/$image_name")
+headers=("$work/$headers_name")
+[[ -f ${images[0]} && -f ${headers[0]} ]] || die 'built package filenames differ from ARM64 kernel identity'
+
+# Out-of-tree Kbuild can leave absolute source-tree symlinks in optional GDB
+# helpers. Dereference only links within this exact source tree and repack.
+headers_stage="$work/headers-stage"
+dpkg-deb -R "${headers[0]}" "$headers_stage"
+python3 "$root/tools/normalize-arm64-header-gdb-links.py" \
+  --stage "$headers_stage" --source-root "$source_dir" --release "$release" \
+  --source-date-epoch "$headers_source_date_epoch" \
+  --output-report "$work/header-gdb-normalization.json"
+normalized_headers="$work/headers-normalized.deb"
+SOURCE_DATE_EPOCH="$headers_source_date_epoch" \
+  dpkg-deb --build --root-owner-group "$headers_stage" "$normalized_headers"
+original_header_identity=$(dpkg-deb -f "${headers[0]}" Package Version Architecture)
+normalized_header_identity=$(dpkg-deb -f "$normalized_headers" Package Version Architecture)
+[[ $normalized_header_identity == "$original_header_identity" ]] || \
+  die 'normalized headers package identity changed during repackaging'
+mv -- "$normalized_headers" "${headers[0]}"
+
 # Comprehensive package audit and verification
 python3 "$root/tools/verify-arm64-packages.py" "$work" \
   --release "$release" \
   --version "$pkg_version" \
   --expected-dtb-build-id "$dtb_build_id" \
   --output-report "$work/package-verification.json"
-
-image_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["image"])')
-headers_name=$(python3 "$root/tools/kernel_identity.py" --identity "$identity" --field package_filenames | python3 -c 'import json,sys; print(json.load(sys.stdin)["headers"])')
-images=("$work/$image_name")
-headers=("$work/$headers_name")
-[[ -f ${images[0]} && -f ${headers[0]} ]] || die 'built package filenames differ from ARM64 kernel identity'
 
 # Copy packages and verification report to output
 mkdir -p -- "$(dirname -- "$output")"
@@ -380,6 +401,7 @@ for package in "${images[@]}" "${headers[@]}"; do
   cp -- "$package" "$output/"
 done
 cp -- "$work/package-verification.json" "$output/"
+cp -- "$work/header-gdb-normalization.json" "$output/"
 cp -- "$work/dtb-build-id.json" "$output/"
 cp -- "$work/policy-audit.json" "$work/source-tree.sha256" "$output/"
 if [[ -n $approved_config ]]; then
@@ -417,6 +439,8 @@ fi
   echo "config_sha256=$config_sha256"
   echo "kconfig_resolved_config_sha256=$resolved_config_sha256"
   printf 'module_audit_sha256='; sha256sum "$output/module-audit.json" | cut -d ' ' -f 1
+  printf 'header_gdb_normalization_sha256='; sha256sum "$output/header-gdb-normalization.json" | cut -d ' ' -f 1
+  echo "header_gdb_normalization_source_date_epoch=$headers_source_date_epoch"
   printf 'policy_fragment_sha256='; sha256sum "$target_dir/policy.fragment" | cut -d ' ' -f 1
   if [[ -n $approved_config ]]; then
     echo 'config_input=approved-file'
